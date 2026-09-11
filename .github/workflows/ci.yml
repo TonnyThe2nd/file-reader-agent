@@ -25,9 +25,9 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: ruff check app tests evaluation
       - run: ruff format --check app tests evaluation
-      - run: pytest -q
-      - run: alembic upgrade head
-      - run: alembic check
+      - run: python -m pytest -q
+      - run: python -m alembic upgrade head
+      - run: python -m alembic check
       - run: python -m evaluation.run
   frontend:
     runs-on: ubuntu-latest
