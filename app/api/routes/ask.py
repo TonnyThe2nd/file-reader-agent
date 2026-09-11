@@ -31,14 +31,18 @@ async def ask(
     document_id: Annotated[UUID | None, Form()] = None,
     mode: Annotated[Literal["direct", "rag"], Form()] = "direct",
     use_cache: Annotated[bool, Form()] = True,
+    conversation_id: Annotated[UUID | None, Form()] = None,
+    chat: Annotated[bool, Form()] = False,
 ) -> AskResponse:
     try:
         with ASK_LATENCY_SECONDS.time():
             question = question.strip()
             if not question:
                 raise HTTPException(422, "A pergunta nao pode conter apenas espacos.")
-            if (file is None) == (document_id is None):
-                raise HTTPException(422, "Envie exatamente um arquivo ou document_id.")
+            if sum(value is not None for value in (file, document_id, conversation_id)) != 1:
+                raise HTTPException(
+                    422, "Envie exatamente um arquivo, document_id ou conversation_id."
+                )
             content, mime_type = (
                 await read_attachment(file, settings.max_upload_bytes) if file else (None, None)
             )
@@ -54,6 +58,8 @@ async def ask(
                 document_id=document_id,
                 mode=mode,
                 use_cache=use_cache,
+                conversation_id=conversation_id,
+                chat=chat,
             )
         ASK_REQUESTS_TOTAL.labels(status="success").inc()
         return response

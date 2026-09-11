@@ -58,6 +58,9 @@ import { FormsModule } from "@angular/forms";
             ><a routerLink="/documentos" routerLinkActive="active"
               ><span>▧</span> Documentos <small>04</small></a
             >
+            <a routerLink="/conversas" routerLinkActive="active"
+              ><span>☷</span> Conversas <small>05</small></a
+            >
           </nav>
           <div class="sidebar-note">
             <span class="note-symbol">↗</span

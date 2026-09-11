@@ -4,7 +4,7 @@
 
 Documento é uma aplicação para consultar arquivos com apoio de inteligência artificial. O usuário envia um arquivo, faz uma pergunta, recebe uma resposta e pode avaliar sua utilidade. Os arquivos ficam em uma biblioteca; as consultas ficam em um histórico com resposta completa, fontes, modelo e tempo de processamento. A página de estatísticas resume o uso e os feedbacks do workspace.
 
-Uma consulta é independente das anteriores: não existe memória automática de conversa. Para continuar um assunto, faça outra pergunta incluindo o contexto necessário. É possível reutilizar um documento salvo sem transferi-lo novamente do navegador.
+A interface inicia conversas com memória por padrão. Perguntas de continuação usam o contexto recente do mesmo documento. Desmarque “Manter contexto nesta conversa” antes do primeiro envio para fazer consultas independentes. É possível reutilizar um documento salvo sem transferi-lo novamente do navegador.
 
 Há dois modos:
 
@@ -112,13 +112,15 @@ erDiagram
 | --- | --- |
 | `documents` | Dono, nome, hash, MIME, tamanho, bytes e data. Bytes ficam no PostgreSQL para evitar desencontro entre banco e arquivos locais. |
 | `document_chunks` | Documento, posição, página/seção, texto, modelo/versão e vetor. Chave única evita duplicação do mesmo índice em requisições concorrentes. |
+| `conversations` | Dono, documento, título e versão. A versão impede que dois envios simultâneos salvem respostas baseadas no mesmo estado desatualizado. |
 | `interactions` | Pergunta, resposta completa, fontes, dono, documento opcional, cache, modo, modelo, latência, tokens e data. |
 | `feedback` | Uma avaliação por interação, nota `1` ou `-1`, comentário e data. Restrição no banco impede duplicatas e valores inválidos. |
 | `alembic_version` | Revisão aplicada pelo Alembic. Não deve ser editada manualmente em operações normais. |
 
-Há duas revisões:
+Há três revisões:
 
 - `ace48b94f7c9`: cria interações e feedback, como no projeto original. O default de data foi expresso com `sa.func.now()` para permitir testes SQLite, preservando o significado no PostgreSQL.
+- `c83f0d52b714`: cria `conversations` e acrescenta `conversation_id` e `turn_number` às interações, sem transformar consultas antigas em conversas.
 - `b72e9c41a603`: cria documentos e trechos e acrescenta os campos de isolamento, associação, cache, modo e tokens às interações.
 
 Registros anteriores continuam no workspace `local`, com modo `direct`, tokens zero e sem documento associado. Uma chave configurada com identificador `local` permite acessar esse histórico depois de habilitar autenticação. Não é possível recuperar arquivos ou consultas antigas que nunca chegaram a ser salvos.
@@ -137,6 +139,7 @@ Também há SQL exportado:
 
 - `db/migrate_fresh.sql`: banco novo, sem as tabelas da aplicação.
 - `db/migrate_existing.sql`: banco exatamente na revisão inicial `ace48b94f7c9`.
+- `db/migrate_chat.sql`: somente a atualização de conversas, para banco na revisão `b72e9c41a603`.
 
 Prefira Alembic, que escolhe as revisões pendentes. Os scripts SQL não são idempotentes e não devem ser executados depois de `upgrade head`. Se as tabelas foram criadas manualmente e não existe `alembic_version`, compare o schema antes de qualquer `stamp`; marcar uma revisão não cria tabelas nem corrige divergências. Gere novamente os SQLs com `python scripts/export_migrations.py` quando alterar as migrations.
 
@@ -168,7 +171,7 @@ Se o PostgreSQL do Windows já usa 5432, você pode utilizá-lo com a `DATABASE_
 | Variável | Efeito |
 | --- | --- |
 | `DATABASE_URL` | Conexão SQLAlchemy; nunca enviada ao navegador. |
-| `GEMINI_API_KEY` | Credencial do provedor. `GOOGLE_API_KEY` é um alias; a primeira tem precedência. |
+| `GEMINI_API_KEY` | Credencial do provedor. A configuração local atual utiliza `GEMINI_API_KEY`. |
 | `GEMINI_MODEL`, `EMBEDDING_MODEL` | Modelos de geração e embeddings. |
 | `GEMINI_TIMEOUT_SECONDS` | Timeout de cada chamada HTTP ao provedor. Uma indexação pode exigir vários lotes. |
 | `MAX_UPLOAD_BYTES` | Limite do arquivo, no máximo 10 MiB. |
@@ -201,7 +204,11 @@ Em desenvolvimento sem `API_TOKENS`, todos os acessos compartilham `local`. Não
 | `GET /config` | Configuração pública mínima: autenticação exigida e tamanho máximo. |
 | `GET /health` | Liveness: confirma que o processo responde, sem acessar provedor ou banco. |
 | `GET /ready` | Verifica acesso ao schema do banco e informa se existe chave Gemini configurada. Não testa a validade da chave nem consome cota. |
-| `POST /ask` | Multipart: `question`, exatamente um de `file` ou `document_id`, `mode=direct\|rag`, `use_cache=true\|false`. |
+| `POST /ask` | Multipart: `question`, exatamente um de `file`, `document_id` ou `conversation_id`, `chat=true|false`, `mode=direct\|rag`, `use_cache=true\|false`. |
+| `GET /conversations` | Conversas do usuário, páginas de 20 via `offset`. |
+| `GET /conversations/{id}` | Até 50 mensagens recentes; `before` carrega mensagens anteriores. |
+| `GET /documents/{id}` | Metadados do documento com verificação de dono. |
+| `GET /documents/{id}/content` | Conteúdo autenticado para visualização, sem cache HTTP. |
 | `POST /documents` | Upload multipart de `file`, sem chamada ao Gemini. |
 | `GET /documents` | Biblioteca paginada por `limit` e `offset`. |
 | `DELETE /documents/{id}` | Exclui documento e índice, mantendo consultas anteriores. |
@@ -267,4 +274,34 @@ Também existe `python scripts/smoke_live.py --live`: usa o banco configurado e 
 
 O projeto entrega o fluxo integrado e uma base de operação reproduzível. A disponibilidade do Gemini depende de chave, modelo e cota externos. Arquivos são guardados no banco, sem criptografia adicional feita pela aplicação; criptografia de disco, backups e políticas de retenção pertencem à implantação. PDFs/imagens no modo direto recebem validação básica de assinatura, não uma análise completa de segurança do documento.
 
-Ainda não há OCR local, conversas com memória, pesquisa em vários documentos ao mesmo tempo, processamento em fila, cobrança financeira por usuário ou login corporativo. Essas capacidades exigem decisões de produto e de infraestrutura além do fluxo implementado. Os diretórios antigos com `.gitkeep` não representam funcionalidades ativas.
+Ainda não há OCR local, pesquisa em vários documentos ao mesmo tempo, processamento em fila, cobrança financeira por usuário ou login corporativo. Essas capacidades exigem decisões de produto e de infraestrutura além do fluxo implementado. Os diretórios antigos com `.gitkeep` não representam funcionalidades ativas.
+
+## 13. Chat com memória e fontes clicáveis
+
+### Usar o chat
+
+1. Escolha um arquivo ou documento salvo e mantenha “Manter contexto nesta conversa” ativado.
+2. Envie a primeira pergunta. O servidor cria a conversa e salva a resposta.
+3. Faça uma pergunta de continuação, como “explique melhor esse prazo”. O navegador envia o identificador da conversa, sem reenviar o arquivo.
+4. Abra “Conversas” no menu para retomar depois. A URL da consulta também contém o identificador, permitindo recarregar a página.
+5. “Nova conversa” limpa o contexto e mantém o documento selecionado. Trocar o arquivo também inicia um contexto separado.
+
+Cada conversa pertence a um usuário e a um documento. As mensagens completas continuam persistidas, mas o contexto enviado ao modelo é limitado às seis interações mais recentes, até 12.000 caracteres de histórico e 3.000 caracteres por resposta anterior. Não há resumo automático dos turnos antigos. A tela carrega 50 mensagens por vez e permite buscar as anteriores.
+
+O histórico segue como mensagens de usuário e modelo no pedido ao Gemini. No RAG, parte do contexto recente também acompanha a pergunta na busca vetorial, ajudando a interpretar referências como “esse prazo”. Isso não garante recuperação perfeita: confirme as fontes.
+
+A chave de cache inclui o histórico efetivamente enviado. Uma resposta independente não é reutilizada para uma pergunta com contexto diferente. Envios concorrentes verificam a versão da conversa antes de salvar; se ela mudou, o envio retorna 409 e orienta a reabrir a conversa. A chamada ao provedor pode já ter ocorrido nesse caso. Falhas de geração não avançam a versão nem adicionam uma resposta vazia.
+
+Excluir o documento preserva o histórico da conversa, mas impede novas perguntas nela (410). Consultas anteriores à migration permanecem independentes. A API mantém compatibilidade: `chat` é falso por padrão para clientes antigos; a interface envia verdadeiro.
+
+### Abrir uma fonte
+
+No modo RAG, clique no nome de uma fonte abaixo da resposta. O visualizador verifica a interação e a autorização sobre o documento antes de carregar o conteúdo.
+
+- **Texto:** mostra o arquivo completo, destaca a primeira ocorrência exata do trecho e rola até ela. Se houver trechos repetidos, o destaque pode apontar à primeira ocorrência; o excerto citado também fica exibido separadamente.
+- **PDF:** mostra o trecho e abre o visualizador nativo do navegador na página indicada. Não há destaque de coordenadas dentro do PDF. A renderização depende do suporte do navegador a PDF.
+- **Imagem:** o visualizador pode exibir o original; o modo direto não cria citações estruturadas automaticamente.
+
+A fonte é identificada na URL por interação e índice, sem colocar o texto do documento ou a chave de acesso na URL. O conteúdo é obtido pelo cliente HTTP autenticado; PDFs e imagens usam URLs temporárias de blob, revogadas ao sair. Texto e excertos são renderizados como texto, sem executar HTML. Fontes antigas que contenham “Pagina N” na seção também podem abrir a página correspondente.
+
+Se o documento foi excluído, o excerto salvo permanece disponível na resposta, mas o original não pode ser aberto. Texto, imagem e PDF originais não ficam expostos em uma rota pública sem autenticação.

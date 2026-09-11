@@ -17,6 +17,34 @@ from app.services.file_service import read_attachment
 router = APIRouter(tags=["documents"])
 
 
+@router.get("/documents/{document_id}/content")
+def document_content(
+    document_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+    owner: Annotated[str, Depends(current_owner)],
+):
+    document = get_document(db, document_id, owner)
+    return Response(
+        document.content,
+        media_type=document.mime_type,
+        headers={
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": "inline",
+            "Content-Security-Policy": "sandbox",
+        },
+    )
+
+
+@router.get("/documents/{document_id}", response_model=DocumentSummary)
+def document_metadata(
+    document_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+    owner: Annotated[str, Depends(current_owner)],
+):
+    return get_document(db, document_id, owner)
+
+
 @router.get("/documents", response_model=list[DocumentSummary])
 def documents(
     db: Annotated[Session, Depends(get_db)],

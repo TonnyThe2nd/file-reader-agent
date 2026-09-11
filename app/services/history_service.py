@@ -64,7 +64,6 @@ def get_stats(db: Session, owner: str = "local") -> StatsResponse:
         .where(Interaction.owner_id == owner)
         .subquery()
     )
-    # One SQL statement provides a consistent snapshot without multiplying rows.
     row = (
         db.execute(select(interactions, feedbacks).join(feedbacks, onclause=true()))
         .mappings()

@@ -1,6 +1,16 @@
 import { Routes } from "@angular/router";
 export const routes: Routes = [
   {
+    path: "conversas",
+    loadComponent: () =>
+      import("./pages/conversations").then((m) => m.ConversationsPage),
+  },
+  {
+    path: "documentos/:id/visualizar",
+    loadComponent: () =>
+      import("./pages/document-viewer").then((m) => m.DocumentViewerPage),
+  },
+  {
     path: "",
     loadComponent: () => import("./pages/ask").then((m) => m.AskPage),
   },

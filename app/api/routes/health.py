@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import current_owner
-from app.models import Document, DocumentChunk, Feedback, Interaction
+from app.models import Conversation, Document, DocumentChunk, Feedback, Interaction
 
 router = APIRouter(tags=["health"])
 
@@ -21,7 +21,7 @@ async def health() -> dict:
 @router.get("/ready")
 def ready(db: Annotated[Session, Depends(get_db)], owner: Annotated[str, Depends(current_owner)]):
     try:
-        for model in (Document, DocumentChunk, Feedback, Interaction):
+        for model in (Conversation, Document, DocumentChunk, Feedback, Interaction):
             db.execute(select(model).limit(0))
     except SQLAlchemyError:
         raise HTTPException(503, "Banco indisponivel ou migrations pendentes.") from None

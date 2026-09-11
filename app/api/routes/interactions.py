@@ -30,7 +30,7 @@ def find_interaction(db: Session, interaction_id: UUID, owner: str) -> Interacti
         select(Interaction).where(Interaction.id == interaction_id, Interaction.owner_id == owner)
     )
     if row is None:
-        raise HTTPException(404, "Interacao nao encontrada.")
+        raise HTTPException(404, "Interaçao nao encontrada.")
     return row
 
 

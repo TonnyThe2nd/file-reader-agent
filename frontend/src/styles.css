@@ -795,3 +795,28 @@ blockquote {
     flex: 1 0 40%;
   }
 }
+.document-preview {
+  width: 100%;
+  height: 75vh;
+  border: 1px solid #dce4d3;
+  margin-top: 20px;
+}
+.document-image {
+  max-width: 100%;
+  display: block;
+  margin-top: 20px;
+}
+.document-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 24px;
+  line-height: 1.8;
+}
+mark {
+  background: #fff0a6;
+}
+.source-link {
+  color: #315c43;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

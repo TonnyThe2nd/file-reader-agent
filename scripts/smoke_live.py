@@ -10,7 +10,7 @@ from sqlalchemy import delete
 from app.core.database import SessionLocal
 from app.core.security import current_owner
 from app.main import app
-from app.models import Document, Interaction
+from app.models import Conversation, Document, Interaction
 
 
 def main():
@@ -37,12 +37,22 @@ def main():
             assert client.post('/feedback', json={'interaction_id':results[0]['interaction_id'], 'rating':1}).status_code == 200
             assert client.get('/stats').json()['total_interactions'] == 3
             assert len(client.get('/interactions').json()) == 3
+            first = client.post('/ask', data={'question':'Qual o total de pedidos?', 'document_id':results[0]['document_id'], 'chat':'true'})
+            assert first.status_code == 200, first.text
+            cid = first.json()['conversation_id']
+            followup = client.post('/ask', data={'question':'Esse total se refere a que?', 'conversation_id':cid})
+            assert followup.status_code == 200, followup.text
+            assert 'pedido' in followup.json()['answer'].lower()
+            assert len(client.get('/conversations/'+cid).json()['messages']) == 2
+            assert client.get('/documents/'+results[0]['document_id']+'/content').status_code == 200
+            print('Chat com memoria, retomada e acesso ao documento validados.')
             print('Fluxo real completo validado.')
             return 0
     finally:
         app.dependency_overrides.pop(current_owner, None)
         with SessionLocal() as db:
             db.execute(delete(Interaction).where(Interaction.owner_id == owner))
+            db.execute(delete(Conversation).where(Conversation.owner_id == owner))
             db.execute(delete(Document).where(Document.owner_id == owner))
             db.commit()
 

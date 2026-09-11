@@ -5,13 +5,15 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.metrics import CACHE_HITS_TOTAL, GENERATION_TOKENS_TOTAL
 from app.models import Interaction
+from app.models.conversation import Conversation
 from app.schemas.ask import AskResponse
+from app.services.conversation_service import get_conversation, memory
 from app.services.document_service import INDEX_VERSION, get_document, retrieve, save_document
 from app.services.gemini_service import GeminiService
 
@@ -34,8 +36,17 @@ class RAGService:
         document_id: UUID | None = None,
         mode: str = "direct",
         use_cache: bool = True,
+        conversation_id: UUID | None = None,
+        chat: bool = False,
     ) -> AskResponse:
         start = time.perf_counter()
+        conversation = get_conversation(db, conversation_id, owner) if conversation_id else None
+        if conversation:
+            if not conversation.document_id:
+                raise HTTPException(
+                    410, "O documento desta conversa foi excluido. Inicie outra conversa."
+                )
+            document_id = conversation.document_id
         document = (
             get_document(db, document_id, owner)
             if document_id
@@ -43,6 +54,15 @@ class RAGService:
         )
         if mode == "rag" and document.mime_type not in ("text/plain", "application/pdf"):
             raise HTTPException(422, "RAG aceita textos e PDFs. Use consulta direta para imagens.")
+        if chat and conversation is None:
+            conversation = Conversation(
+                owner_id=owner, document_id=document.id, title=question[:200]
+            )
+            db.add(conversation)
+            db.commit()
+            db.refresh(conversation)
+        version = conversation.version if conversation else 0
+        history = memory(db, conversation.id) if conversation else []
         signature = [
             owner,
             str(document.id),
@@ -54,6 +74,7 @@ class RAGService:
             settings.rag_top_k,
             INDEX_VERSION,
             PROMPT_VERSION,
+            history,
         ]
         cache_key = hashlib.sha256(json.dumps(signature, ensure_ascii=False).encode()).hexdigest()
         cached = None
@@ -78,7 +99,19 @@ class RAGService:
         else:
             prompt, payload, mime = question, document.content, document.mime_type
             if mode == "rag":
-                retrieved = await retrieve(db, document, question, self.gemini)
+                retrieval_question = question
+                if history:
+                    retrieval_question = (
+                        "Contexto anterior: "
+                        + " ".join(m["parts"][0]["text"][:800] for m in history[-4:])
+                        + "\nPergunta atual: "
+                        + question
+                    )
+                retrieved = await retrieve(db, document, retrieval_question, self.gemini)
+                for source in retrieved:
+                    source.document_id = str(document.id)
+                    if source.section and source.section.startswith("Pagina "):
+                        source.page = int(source.section.split(",")[0].split()[1])
                 sources = [source.model_dump() for source in retrieved]
                 payload = "\n\n".join(
                     f"[{i + 1}] {s.source} — {s.section}\n{s.content}"
@@ -89,10 +122,22 @@ class RAGService:
                     question
                     + "\nResponda apenas com base nos trechos fornecidos e cite seus numeros [1], [2], etc. Se nao houver evidencia suficiente, informe isso."
                 )
-            answer, model = await self.gemini.generate(prompt, payload, mime)
+            answer, model = await self.gemini.generate(prompt, payload, mime, history=history)
             usage = self.gemini.usage
             for kind, value in usage.items():
                 GENERATION_TOKENS_TOTAL.labels(kind=kind).inc(value)
+        if conversation:
+            changed = db.execute(
+                update(Conversation)
+                .where(Conversation.id == conversation.id, Conversation.version == version)
+                .values(version=version + 1)
+            )
+            if changed.rowcount != 1:
+                db.rollback()
+                raise HTTPException(
+                    409,
+                    "A conversa mudou durante o envio. Reabra a conversa antes de tentar novamente.",
+                )
         row = Interaction(
             owner_id=owner,
             document_id=document.id,
@@ -104,6 +149,8 @@ class RAGService:
             cache_hit=cached is not None,
             cache_key=cache_key,
             mode=mode,
+            conversation_id=conversation.id if conversation else None,
+            turn_number=version + 1 if conversation else None,
             **usage,
         )
         db.add(row)
@@ -118,6 +165,7 @@ class RAGService:
             cache_hit=row.cache_hit,
             created_at=row.created_at,
             document_id=str(document.id),
+            conversation_id=str(conversation.id) if conversation else None,
             mode=mode,
             **usage,
         )

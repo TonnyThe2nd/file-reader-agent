@@ -13,6 +13,8 @@ class Source(BaseModel):
     source: str
     section: str | None = None
     score: float | None = None
+    document_id: str | None = None
+    page: int | None = None
 
 
 class AskResponse(BaseModel):
@@ -27,3 +29,4 @@ class AskResponse(BaseModel):
     mode: str = "direct"
     input_tokens: int = 0
     output_tokens: int = 0
+    conversation_id: str | None = None

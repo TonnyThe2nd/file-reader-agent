@@ -2,14 +2,15 @@
 
 ## Executado com sucesso
 
-- Backend: **33 testes e 14 subtestes**. Inclui integração das camadas com transporte Gemini simulado, persistência, cache e expiração, RAG e reutilização do índice, isolamento, feedback, exclusões, extração de PDF e validação das migrations.
-- Navegador: **7 testes Playwright**, incluindo consulta, erro do provedor, histórico, layout móvel, documentos salvos, RAG/fontes, resposta completa e login/logout.
+- Backend: **39 testes e 14 subtestes**. Inclui integração das camadas com transporte Gemini simulado, persistência, cache e expiração, RAG e reutilização do índice, isolamento, feedback, exclusões, extração de PDF, migrations, memória limitada, paginação de conversas e rejeição de envios concorrentes desatualizados.
+- Navegador: **10 testes Playwright**, incluindo consulta, erro do provedor, histórico, layout móvel, documentos salvos, RAG/fontes, resposta completa, login/logout, continuidade e retomada do chat, destaque de trechos e abertura da página PDF.
 - Build Angular de produção: concluído.
 - Ruff e Prettier: código verificado e formatado.
-- PostgreSQL configurado no `.env`: migrations aplicadas até `b72e9c41a603`; `alembic check` sem divergências.
+- PostgreSQL configurado no `.env`: migrations aplicadas até `c83f0d52b714`; `alembic check` sem divergências.
 - Migration em banco de teste: preservação de registro anterior e upgrade/downgrade verificados.
 - SQLs PostgreSQL para banco novo e atualização: gerados em `db/`.
 - Gemini real: consulta direta, cache, embeddings, recuperação de fontes e geração RAG validados com um documento sintético. Histórico, feedback e estatísticas conferidos no PostgreSQL real. Os registros do workspace temporário foram removidos pelo script.
+- Chat real: pergunta de continuação respondida pelo Gemini, retomada da conversa e acesso autenticado ao documento conferidos; conversas de teste removidas ao terminar.
 - Avaliador: exemplos gravados passaram; isso valida o mecanismo de avaliação, não representa uma medição ampla da qualidade do modelo.
 - Docker Compose: configuração validada com os perfis `app` e `monitoring`.
 

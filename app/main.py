@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api.routes import ask, documents, feedback, health, interactions, stats
+from app.api.routes import ask, conversations, documents, feedback, health, interactions, stats
 from app.core.config import settings
 from app.core.logging import get_logger, setup_logging
 
@@ -28,7 +28,6 @@ app = FastAPI(
     description="API de RAG com LLMOps",
 )
 
-# CORS (libera tudo em dev; restrinja em produção)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -37,13 +36,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Rotas
 app.include_router(health.router)
 app.include_router(ask.router)
 app.include_router(feedback.router)
 app.include_router(interactions.router)
 app.include_router(stats.router)
 app.include_router(documents.router)
+app.include_router(conversations.router)
 
 
 @app.exception_handler(SQLAlchemyError)
@@ -54,7 +53,6 @@ async def database_error_handler(request, exc):
     )
 
 
-# Métricas Prometheus em /metrics
 Instrumentator().instrument(app).expose(app)
 
 

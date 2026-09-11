@@ -22,3 +22,5 @@ class InteractionDetail(InteractionSummary):
     input_tokens: int
     output_tokens: int
     comment: str | None = None
+    conversation_id: UUID | None = None
+    turn_number: int | None = None

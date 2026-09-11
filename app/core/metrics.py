@@ -5,7 +5,6 @@ GENERATION_TOKENS_TOTAL = Counter(
     "generation_tokens_total", "Tokens informados pelo provedor", ["kind"]
 )
 
-# Métricas customizadas
 ASK_REQUESTS_TOTAL = Counter(
     "ask_requests_total",
     "Total de requisições ao endpoint /ask",

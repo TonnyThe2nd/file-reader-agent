@@ -41,6 +41,7 @@ Prefira `alembic upgrade head`. Para execução manual, há [SQL para banco novo
 - Consulta ao documento inteiro ou busca vetorial em trechos de texto/PDF.
 - Biblioteca para reutilizar arquivos, com deduplicação por conteúdo e usuário.
 - Histórico com busca, paginação, resposta completa e exclusão.
+- Chat com memória, retomada de conversas e fontes clicáveis com visualizador.
 - Feedback na resposta e no histórico; estatísticas por usuário.
 - Cache com validade, fontes recuperadas e registro de tokens de geração.
 - Chaves de acesso individuais, limites de requisições e CORS configurável.
@@ -72,4 +73,5 @@ docker compose --profile app --profile monitoring up --build -d
 
 Interface na porta 8080, Grafana na 3000 e Prometheus na 9090, vinculados ao localhost. O serviço `migrate` aplica o schema antes da API. Para publicação externa, configure HTTPS, chaves individuais, senhas próprias e backup.
 
-RAG usa busca exata sobre embeddings persistidos, limitada a um documento. Não há OCR local, pesquisa em todo o acervo ou memória automática de conversa. Consulte o guia para limites de escala e segurança.
+RAG usa busca exata sobre embeddings persistidos, limitada a um documento. A memória de conversa é limitada aos turnos recentes. Não há OCR local nem pesquisa em todo o acervo. Consulte o guia para limites de escala e segurança.
+A migration [c83f0d52b714](alembic/versions/c83f0d52b714_conversations.py) adiciona conversas. Para bancos na revisão anterior, o SQL correspondente está em [db/migrate_chat.sql](db/migrate_chat.sql). Prefira `alembic upgrade head`.

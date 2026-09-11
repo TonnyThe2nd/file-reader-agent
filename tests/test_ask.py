@@ -164,8 +164,8 @@ class AskTests(unittest.TestCase):
             "multipart/form-data", schema["paths"]["/ask"]["post"]["requestBody"]["content"]
         )
 
-    def test_google_key_alias(self):
-        config = Settings(_env_file=None, GOOGLE_API_KEY="alias-key")
+    def test_configured_gemini_key(self):
+        config = Settings(_env_file=None, GEMINI_API_KEY="alias-key")
         self.assertEqual(config.gemini_api_key.get_secret_value(), "alias-key")
 
 

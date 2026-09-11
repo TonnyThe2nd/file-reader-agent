@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     database_url: str = "postgresql://postgres:postgres@localhost:5432/llmops"
     gemini_api_key: SecretStr = Field(
-        default=SecretStr(""), validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY")
+        default=SecretStr(""), validation_alias=AliasChoices("GEMINI_API_KEY")
     )
     gemini_model: str = Field(default="gemini-2.5-flash", pattern=r"^[a-zA-Z0-9._-]+$")
     gemini_timeout_seconds: float = Field(default=120, gt=0)
@@ -32,11 +32,9 @@ class Settings(BaseSettings):
         if len(set(tokens)) != len(tokens) or any(
             len(token) < 24 or token != token.strip() for token in tokens
         ):
-            raise ValueError(
-                "API_TOKENS requer chaves distintas de pelo menos 24 caracteres, sem espacos nas extremidades."
-            )
+            raise ValueError("Chave invalidaa")
         if any(not owner.strip() or len(owner) > 100 for owner in values):
-            raise ValueError("Identificadores de usuarios devem ter entre 1 e 100 caracteres.")
+            raise ValueError("Identificador invalido")
         return values
 
     model_config = SettingsConfigDict(

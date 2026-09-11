@@ -5,12 +5,15 @@ import {
   HttpInterceptorFn,
 } from "@angular/common/http";
 export interface Source {
+  document_id?: string;
+  page?: number;
   content: string;
   source: string;
   section?: string;
   score?: number;
 }
 export interface Answer {
+  conversation_id?: string;
   interaction_id: string;
   answer: string;
   model_used: string;
@@ -33,6 +36,8 @@ export interface Interaction {
   rating: number | null;
 }
 export interface InteractionDetail extends Interaction {
+  document_id?: string;
+  conversation_id?: string;
   sources: Source[];
   cache_hit: boolean;
   mode: string;
@@ -46,6 +51,21 @@ export interface DocumentItem {
   mime_type: string;
   size_bytes: number;
   created_at: string;
+}
+export interface ChatMessage extends Answer {
+  question: string;
+  rating?: number | null;
+  turn_number?: number;
+}
+export interface ConversationItem {
+  id: string;
+  title: string;
+  document_id: string | null;
+  created_at: string;
+}
+export interface ConversationDetail extends ConversationItem {
+  messages: ChatMessage[];
+  next_before: number | null;
 }
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const token = sessionStorage.getItem("documento-token");
@@ -86,13 +106,17 @@ export class Api {
     documentId = "",
     mode = "direct",
     useCache = true,
+    conversationId = "",
+    chat = false,
   ) {
     const body = new FormData();
     body.append("question", question);
-    if (file) body.append("file", file);
+    if (conversationId) body.append("conversation_id", conversationId);
+    else if (file) body.append("file", file);
     else body.append("document_id", documentId);
     body.append("mode", mode);
     body.append("use_cache", String(useCache));
+    body.append("chat", String(chat));
     return this.http.post<Answer>("/api/ask", body);
   }
   history(offset: number, search = "") {
@@ -102,6 +126,24 @@ export class Api {
   }
   detail(id: string) {
     return this.http.get<InteractionDetail>(`/api/interactions/${id}`);
+  }
+  conversations(offset = 0) {
+    return this.http.get<ConversationItem[]>("/api/conversations", {
+      params: { offset },
+    });
+  }
+  conversation(id: string, before?: number) {
+    return this.http.get<ConversationDetail>(`/api/conversations/${id}`, {
+      params: before ? { before } : {},
+    });
+  }
+  document(id: string) {
+    return this.http.get<DocumentItem>(`/api/documents/${id}`);
+  }
+  documentContent(id: string) {
+    return this.http.get(`/api/documents/${id}/content`, {
+      responseType: "blob",
+    });
   }
   deleteInteraction(id: string) {
     return this.http.delete(`/api/interactions/${id}`);

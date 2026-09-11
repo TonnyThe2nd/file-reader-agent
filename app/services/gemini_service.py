@@ -22,7 +22,9 @@ class GeminiService:
         self.config = config
         self.usage = {"input_tokens": 0, "output_tokens": 0}
 
-    async def generate(self, question: str, content: bytes, mime_type: str) -> tuple[str, str]:
+    async def generate(
+        self, question: str, content: bytes, mime_type: str, history: list[dict] | None = None
+    ) -> tuple[str, str]:
         key = self.config.gemini_api_key.get_secret_value().strip()
         if not key:
             raise GeminiError(503, "Configure GEMINI_API_KEY")
@@ -46,7 +48,10 @@ class GeminiService:
                     }
                 ]
             },
-            "contents": [{"role": "user", "parts": [file_part, {"text": question}]}],
+            "contents": [
+                *(history or []),
+                {"role": "user", "parts": [file_part, {"text": question}]},
+            ],
         }
         try:
             response = await self.client.post(

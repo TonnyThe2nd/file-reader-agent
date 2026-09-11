@@ -23,6 +23,10 @@ class Interaction(Base):
         ForeignKey("documents.id", ondelete="SET NULL"), index=True
     )
     cache_key: Mapped[str | None] = mapped_column(String(64), index=True)
+    conversation_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("conversations.id", ondelete="SET NULL"), index=True
+    )
+    turn_number: Mapped[int | None] = mapped_column(Integer)
     mode: Mapped[str] = mapped_column(String(10), default="direct", server_default="direct")
     input_tokens: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     output_tokens: Mapped[int] = mapped_column(Integer, default=0, server_default="0")

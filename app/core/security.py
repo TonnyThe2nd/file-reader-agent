@@ -21,7 +21,7 @@ def current_owner(
 ) -> str:
     if not settings.api_tokens:
         if settings.app_env != "development":
-            raise HTTPException(503, "O acesso precisa ser configurado pelo administrador.")
+            raise HTTPException(503, "O acesso precisa ser configurado!")
         return "local"
     if credentials:
         for owner, token in settings.api_tokens.items():
@@ -43,7 +43,7 @@ def limit_requests(owner: Annotated[str, Depends(current_owner)]) -> str:
         if len(queue) >= settings.rate_limit_per_minute:
             raise HTTPException(
                 429,
-                "Limite de consultas atingido. Aguarde um minuto.",
+                "Limite de consultas atingido.",
                 headers={"Retry-After": "60"},
             )
         queue.append(now)

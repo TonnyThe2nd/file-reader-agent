@@ -20,6 +20,8 @@ Acesse http://localhost:4200. O proxy em `proxy.conf.cjs` encaminha `/api/*` ao 
 - `/historico`: busca, paginação, feedback e exclusão de consultas.
 - `/historico/:id`: resposta completa com fontes, avaliação e consumo.
 - `/estatisticas`: indicadores do workspace.
+- `/conversas`: conversas salvas, com retomada e carregamento de mensagens anteriores.
+- `/documentos/:id/visualizar`: texto com trecho destacado, imagens e PDFs na página da fonte.
 - Quando exigido pelo backend, a aplicação apresenta o formulário de chave de acesso antes das telas.
 
 A chave da aplicação fica no `sessionStorage` da aba e é removida ao sair. Ela é diferente da chave Gemini, que nunca é enviada ao frontend.
@@ -41,3 +43,4 @@ npm.cmd run test:e2e
 O build fica em `dist/documento/browser`. Os testes simulam a API, sem enviar arquivos ao Gemini. O Dockerfile inclui Nginx com fallback das rotas Angular, limite de corpo HTTP e proxy para a API.
 
 Veja [o guia da aplicação](../docs/APLICACAO.md) para banco, backend, autenticação, configurações, testes reais e decisões de arquitetura.
+Na tela de consulta, “Manter contexto nesta conversa” vem ativado. “Nova conversa” reinicia o contexto mantendo o documento. O componente `shared/sources.ts` oferece fontes clicáveis na consulta e nos detalhes do histórico.
