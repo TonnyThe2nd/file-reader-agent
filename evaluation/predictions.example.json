@@ -1,0 +1,5 @@
+[
+  {"id":"total", "answer":"O total foi 42 [1].", "sources":[{"content":"O total de pedidos em agosto foi 42."}], "latency_ms":100},
+  {"id":"prazo", "answer":"O prazo é de cinco dias [1].", "sources":[{"content":"A entrega ocorre em cinco dias."}], "latency_ms":120},
+  {"id":"ausencia", "answer":"O documento não informa o nome do diretor.", "sources":[], "latency_ms":90}
+]

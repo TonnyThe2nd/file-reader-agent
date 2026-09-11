@@ -1,0 +1,10 @@
+.env
+.venv
+venv
+**/__pycache__
+**/.npm-cache
+frontend
+.git
+.pytest_cache
+data
+*.log

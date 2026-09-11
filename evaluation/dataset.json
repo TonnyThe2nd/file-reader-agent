@@ -1,0 +1,5 @@
+[
+  {"id":"total", "document":"O total de pedidos em agosto foi 42. A entrega ocorre em cinco dias.", "question":"Qual o total de pedidos em agosto?", "expected_terms":["42"], "expected_source_terms":["42"]},
+  {"id":"prazo", "document":"A entrega ocorre em cinco dias. O suporte atende de segunda a sexta.", "question":"Qual o prazo de entrega?", "expected_terms":["cinco"], "expected_source_terms":["cinco dias"]},
+  {"id":"ausencia", "document":"O documento apresenta apenas o prazo de entrega: cinco dias.", "question":"Qual o nome do diretor?", "expected_terms":["não"], "expected_source_terms":[]}
+]

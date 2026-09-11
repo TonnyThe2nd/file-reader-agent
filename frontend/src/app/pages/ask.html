@@ -1,0 +1,139 @@
+<div class="eyebrow">SEU ASSISTENTE DE DOCUMENTOS</div>
+<h1>Uma nova perspectiva<br />sobre seus <em>arquivos.</em></h1>
+<p class="lead">
+  Envie um documento, faça uma pergunta e deixe as ideias mais claras.
+</p>
+<div class="ask-grid">
+  <section class="card composer">
+    <div class="section-title">
+      <span class="step">01</span>
+      <h2>Escolha seu arquivo</h2>
+      <span class="tag">ATÉ {{maxBytes / 1048576 | number:'1.0-2'}} MiB</span>
+    </div>
+    <label
+      class="dropzone"
+      [class.dragging]="dragging()"
+      (dragover)="$event.preventDefault(); dragging.set(true)"
+      (dragleave)="dragging.set(false)"
+      (drop)="drop($event)"
+      ><input
+        type="file"
+        [disabled]="busy()"
+        accept=".pdf,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.webp"
+        (change)="select($event)"
+      /><span class="upload-icon">↥</span>@if(file(); as selected) {<strong
+        >{{selected.name}}</strong
+      ><span
+        >{{selected.size / 1024 | number:'1.0-0'}} KB · Clique para
+        substituir</span
+      >} @else {<strong>Arraste seu arquivo até aqui</strong
+      ><span>ou <b>escolha no computador</b></span
+      >}<small>PDF, TXT, MD, CSV, JSON ou imagens</small></label
+    >
+    <p>
+      <a class="secondary" routerLink="/documentos"
+        >Usar documento da biblioteca</a
+      >
+    </p>
+    @if(documentId) {
+    <p>Selecionado: <strong>{{documentName}}</strong></p>
+    }
+    <form (ngSubmit)="send()">
+      <div class="section-title question-title">
+        <span class="step">02</span
+        ><label for="question">O que você quer descobrir?</label>
+      </div>
+      <textarea
+        id="question"
+        name="question"
+        [(ngModel)]="question"
+        maxlength="2000"
+        rows="5"
+        [disabled]="busy()"
+        placeholder="Ex.: Quais são os pontos principais deste documento?"
+        required
+      ></textarea>
+      <div class="character-count">{{question.length}} / 2.000</div>
+      <div class="query-options">
+        <label for="mode">Como consultar</label
+        ><select id="mode" name="mode" [(ngModel)]="mode" [disabled]="busy()">
+          <option value="direct">
+            Documento inteiro — ideal para resumos e imagens
+          </option>
+          <option value="rag">
+            Buscar trechos com fontes — textos e PDFs
+          </option></select
+        ><label
+          ><input
+            type="checkbox"
+            name="useCache"
+            [(ngModel)]="useCache"
+            [disabled]="busy()"
+          />
+          Reutilizar resposta recente, quando disponível</label
+        >
+      </div>
+      <button
+        class="primary send"
+        type="submit"
+        [disabled]="busy() || (!file() && !documentId) || !question.trim()"
+      >
+        {{busy() ? 'Analisando documento…' : 'Perguntar ao documento'}}<span
+          >{{busy() ? '◌' : '↗'}}</span
+        >
+      </button>
+    </form>
+    <p class="privacy">
+      O arquivo ficará salvo na sua biblioteca. Seu conteúdo será enviado ao
+      Gemini para responder ou buscar trechos.
+    </p>
+  </section>
+  <aside class="guide">
+    <span class="guide-star">✦</span>
+    <h2>Boas perguntas.<br />Novas descobertas.</h2>
+    <p>Comece com uma ideia ou experimente uma destas perguntas.</p>
+    <div class="suggestions">
+      @for (suggestion of suggestions; track suggestion) {<button
+        [disabled]="busy()"
+        (click)="question = suggestion"
+      >
+        {{suggestion}}<span>↗</span></button
+      >}
+    </div>
+    <div class="guide-bottom">
+      <span>↗</span> Cada envio é uma nova consulta. Inclua o contexto
+      necessário na pergunta.
+    </div>
+  </aside>
+</div>
+@if(error()) {
+<div class="alert" role="alert">{{error()}}</div>
+} @if(busy()) {
+<div class="card response loading" role="status">
+  <span class="spinner"></span> Lendo seu arquivo e preparando a resposta…
+</div>
+} @if(answer(); as result) {
+<section class="card response" aria-live="polite">
+  <div class="section-title">
+    <span class="answer-icon">✦</span>
+    <h2>Sua resposta</h2>
+    <span class="tag">{{result.latency_ms / 1000 | number:'1.1-1'}} s</span>
+  </div>
+  <div class="answer-text">{{result.answer}}</div>
+  @for(source of result.sources; track $index) {
+  <blockquote>
+    <strong>[{{$index + 1}}] {{source.source}} · {{source.section}}</strong>
+    <p>{{source.content}}</p>
+  </blockquote>
+  }
+  <p>
+    {{result.cache_hit ? 'Resposta reutilizada do cache' : 'Nova resposta'}} ·
+    Consulta salva no histórico
+  </p>
+  <app-feedback [interactionId]="result.interaction_id" />
+  <div class="response-meta">
+    {{result.model_used}} · Confira as informações importantes no arquivo
+    original.
+  </div>
+</section>
+}

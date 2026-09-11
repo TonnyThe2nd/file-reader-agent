@@ -1,0 +1,75 @@
+# Documento — consultas a arquivos com Gemini
+
+Angular + FastAPI + PostgreSQL com consulta direta e RAG, biblioteca de documentos, histórico persistente, feedback, estatísticas, autenticação por usuário e cache.
+
+O [guia completo da aplicação](docs/APLICACAO.md) explica as funcionalidades, arquitetura, decisões, banco, autenticação, testes, operação e limitações.
+
+## Executar localmente
+
+Preserve seu `.env` existente. Para uma instalação nova, use `.env.example` como referência e configure `GEMINI_API_KEY` e `DATABASE_URL`.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+# Apenas se precisar iniciar um banco pelo Docker:
+docker compose up -d postgres
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+Em outro terminal:
+
+```powershell
+cd frontend
+npm.cmd ci
+npm.cmd start
+```
+
+Interface: http://localhost:4200. Swagger: http://127.0.0.1:8000/docs.
+
+Se já existe PostgreSQL na porta 5432, utilize-o com a URL correta ou defina `POSTGRES_PORT=5433` para o container e ajuste a URL local. Não remova volumes para resolver conflitos.
+
+## Banco
+
+A [migration incremental](alembic/versions/b72e9c41a603_documents_and_query_persistence.py) preserva o histórico existente no workspace `local`.
+
+Prefira `alembic upgrade head`. Para execução manual, há [SQL para banco novo](db/migrate_fresh.sql) e [SQL para banco na revisão inicial](db/migrate_existing.sql). Não execute os SQLs depois de aplicar as mesmas mudanças com Alembic.
+
+## Funcionalidades
+
+- PDF, TXT, MD, CSV, JSON e imagens, até 10 MiB.
+- Consulta ao documento inteiro ou busca vetorial em trechos de texto/PDF.
+- Biblioteca para reutilizar arquivos, com deduplicação por conteúdo e usuário.
+- Histórico com busca, paginação, resposta completa e exclusão.
+- Feedback na resposta e no histórico; estatísticas por usuário.
+- Cache com validade, fontes recuperadas e registro de tokens de geração.
+- Chaves de acesso individuais, limites de requisições e CORS configurável.
+- Migrations, testes, avaliação de referência, CI e configuração Prometheus/Grafana.
+
+Sem `API_TOKENS`, somente `APP_ENV=development` permite o workspace compartilhado `local`. Para acesso individual, configure `API_TOKENS` conforme o guia. A chave do Gemini fica apenas no backend.
+
+## Validar
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m alembic check
+.\.venv\Scripts\python.exe -m ruff check app tests evaluation
+.\.venv\Scripts\python.exe -m evaluation.run
+cd frontend
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run test:e2e
+```
+
+Os testes não consomem cota. `python scripts/smoke_live.py --live` valida o fluxo real com dados sintéticos e consome cota; os registros temporários são removidos ao terminar.
+
+## Containers
+
+```powershell
+docker compose --profile app up --build -d
+docker compose --profile app --profile monitoring up --build -d
+```
+
+Interface na porta 8080, Grafana na 3000 e Prometheus na 9090, vinculados ao localhost. O serviço `migrate` aplica o schema antes da API. Para publicação externa, configure HTTPS, chaves individuais, senhas próprias e backup.
+
+RAG usa busca exata sobre embeddings persistidos, limitada a um documento. Não há OCR local, pesquisa em todo o acervo ou memória automática de conversa. Consulte o guia para limites de escala e segurança.

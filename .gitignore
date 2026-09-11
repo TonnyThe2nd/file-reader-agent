@@ -1,0 +1,10 @@
+.env
+# Dependencias e artefatos locais
+.npm-cache/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+evaluation/report*.json
+frontend/playwright-report/

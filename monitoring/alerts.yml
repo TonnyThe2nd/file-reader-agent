@@ -1,0 +1,24 @@
+groups:
+  - name: documento
+    rules:
+      - alert: DocumentoApiDown
+        expr: up{job="documento"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: API Documento indisponível
+      - alert: DocumentoAskErrors
+        expr: sum(rate(ask_requests_total{status="error"}[5m])) / clamp_min(sum(rate(ask_requests_total[5m])), 0.001) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Mais de 20% das consultas falharam
+      - alert: DocumentoSlowQueries
+        expr: histogram_quantile(0.95, sum by (le) (rate(ask_latency_seconds_bucket[5m]))) > 60
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Latência p95 acima de 60 segundos
