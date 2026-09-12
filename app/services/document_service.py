@@ -109,8 +109,8 @@ def cosine(left: list[float], right: list[float]) -> float:
     return sum(a * b for a, b in zip(left, right)) / norm if norm else 0.0
 
 
-async def retrieve(db: Session, document: Document, question: str, gemini) -> list[Source]:
-    index_model = f"{settings.embedding_model}:{INDEX_VERSION}"
+async def retrieve(db: Session, document: Document, question: str, ollama) -> list[Source]:
+    index_model = f"ollama:{settings.embedding_model_ollama}:{settings.ollama_embedding_dimensions}:{INDEX_VERSION}:nomic-v1"
     query = (
         select(DocumentChunk)
         .where(
@@ -121,7 +121,7 @@ async def retrieve(db: Session, document: Document, question: str, gemini) -> li
     chunks = list(db.scalars(query))
     if not chunks:
         sections = await run_in_threadpool(split_document, document.content, document.mime_type)
-        vectors = await gemini.embed([text for _, text in sections], "RETRIEVAL_DOCUMENT")
+        vectors = await ollama.embed([text for _, text in sections], "RETRIEVAL_DOCUMENT")
         chunks = [
             DocumentChunk(
                 document_id=document.id,
@@ -141,7 +141,7 @@ async def retrieve(db: Session, document: Document, question: str, gemini) -> li
             chunks = list(db.scalars(query))
             if not chunks:
                 raise
-    vector = (await gemini.embed([question], "RETRIEVAL_QUERY"))[0]
+    vector = (await ollama.embed([question], "RETRIEVAL_QUERY"))[0]
     ranked = sorted(
         ((cosine(vector, chunk.embedding), chunk) for chunk in chunks),
         key=lambda item: (-item[0], item[1].position),

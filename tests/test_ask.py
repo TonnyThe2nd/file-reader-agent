@@ -1,11 +1,9 @@
-import base64
 import json
 import unittest
 from unittest.mock import patch
 
 import httpx
 from fastapi.testclient import TestClient
-from pydantic import SecretStr
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -33,7 +31,7 @@ class AskTests(unittest.TestCase):
         app.dependency_overrides[get_db] = override_db
         self.addCleanup(engine.dispose)
         self.addCleanup(app.dependency_overrides.pop, get_db, None)
-        self.key_patch = patch.object(settings, "gemini_api_key", SecretStr("test-secret"))
+        self.key_patch = patch.object(settings, "chat_model", "qwen-test")
         self.key_patch.start()
         self.addCleanup(self.key_patch.stop)
         self.client = TestClient(app)
@@ -42,10 +40,8 @@ class AskTests(unittest.TestCase):
         self.calls = []
         self.status = 200
         self.result = {
-            "candidates": [
-                {"finishReason": "STOP", "content": {"parts": [{"text": "Resposta do arquivo"}]}}
-            ],
-            "modelVersion": "test-model",
+            "choices": [{"finish_reason": "stop", "message": {"content": "Resposta do arquivo"}}],
+            "model": "test-model",
         }
         self.failure = None
 
@@ -79,18 +75,15 @@ class AskTests(unittest.TestCase):
         self.assertEqual(response.json()["sources"], [])
         self.assertEqual(response.json()["model_used"], "test-model")
         request = self.calls[0]
-        self.assertEqual(request.headers["x-goog-api-key"], "test-secret")
-        self.assertNotIn("test-secret", str(request.url))
-        parts = json.loads(request.content)["contents"][0]["parts"]
-        self.assertIn("O total e 42", parts[0]["text"])
-        self.assertEqual(parts[1]["text"], "Qual o total?")
+        self.assertEqual(request.url.path, "/v1/chat/completions")
+        self.assertNotIn("x-goog-api-key", request.headers)
+        message = json.loads(request.content)["messages"][-1]["content"]
+        self.assertIn("O total e 42", message)
+        self.assertIn("Qual o total?", message)
 
-    def test_pdf_inline(self):
-        content = b"%PDF-1.4\nexample"
-        self.assertEqual(self.ask("doc.pdf", content).status_code, 200)
-        part = json.loads(self.calls[0].content)["contents"][0]["parts"][0]["inlineData"]
-        self.assertEqual(part["mimeType"], "application/pdf")
-        self.assertEqual(base64.b64decode(part["data"]), content)
+    def test_invalid_pdf_rejected(self):
+        self.assertEqual(self.ask("doc.pdf", b"%PDF-1.4\nexample").status_code, 422)
+        self.assertEqual(self.calls, [])
 
     def test_validation(self):
         for name, content, question, status in [
@@ -113,11 +106,6 @@ class AskTests(unittest.TestCase):
     def test_required_fields(self):
         self.assertEqual(self.client.post("/ask", data={"question": "Pergunta"}).status_code, 422)
         self.assertEqual(self.client.post("/ask", files={"file": ("a.txt", b"x")}).status_code, 422)
-
-    def test_missing_key(self):
-        with patch.object(settings, "gemini_api_key", SecretStr("")):
-            self.assertEqual(self.ask().status_code, 503)
-        self.assertEqual(self.calls, [])
 
     def test_upstream_errors_are_sanitized(self):
         for upstream, expected in [
@@ -152,7 +140,7 @@ class AskTests(unittest.TestCase):
             ({}, 502),
             ([], 502),
             ({"candidates": []}, 502),
-            ({"promptFeedback": {"blockReason": "SAFETY"}}, 422),
+            ({"choices": [{"finish_reason": "content_filter"}]}, 422),
         ]:
             self.result = result
             self.assertEqual(self.ask().status_code, expected)
@@ -164,9 +152,9 @@ class AskTests(unittest.TestCase):
             "multipart/form-data", schema["paths"]["/ask"]["post"]["requestBody"]["content"]
         )
 
-    def test_configured_gemini_key(self):
-        config = Settings(_env_file=None, GEMINI_API_KEY="alias-key")
-        self.assertEqual(config.gemini_api_key.get_secret_value(), "alias-key")
+    def test_configured_ollama_model(self):
+        config = Settings(_env_file=None, OLLAMA_CHAT_MODEL="qwen3:8b")
+        self.assertEqual(config.chat_model, "qwen3:8b")
 
 
 if __name__ == "__main__":

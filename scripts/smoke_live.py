@@ -1,4 +1,4 @@
-"""Validação opcional com Gemini real, dados sintéticos e limpeza do workspace de teste."""
+"""Validação opcional com Ollama real, dados sintéticos e limpeza do workspace de teste."""
 import argparse
 import sys
 from pathlib import Path

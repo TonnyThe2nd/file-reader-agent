@@ -1,3 +1,5 @@
+> Migra??o: o provedor ativo agora ? Ollama/Qwen. Consulte [OLLAMA.md](OLLAMA.md) para configura??o, protocolo, PDFs, ?ndices e limita??es atuais. As refer?ncias a Gemini abaixo descrevem a arquitetura anterior.
+
 # Documento — guia da aplicação
 
 ## 1. Objetivo e experiência de uso

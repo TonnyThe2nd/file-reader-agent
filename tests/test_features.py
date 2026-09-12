@@ -16,21 +16,27 @@ from app.services.document_service import cosine, split_document
 @pytest.fixture
 def provider(client, monkeypatch):
     calls = []
-    monkeypatch.setattr(settings, "gemini_api_key", SecretStr("fake-key"))
+    monkeypatch.setattr(settings, "chat_model", "qwen-test")
 
     def handler(request):
         calls.append(request)
-        if request.url.path.endswith(":batchEmbedContents"):
-            requests = json.loads(request.content)["requests"]
+        if request.url.path.endswith("/embeddings"):
+            requests = json.loads(request.content)["input"]
             return httpx.Response(
-                200, json={"embeddings": [{"values": [1.0] + [0.0] * 767} for _ in requests]}
+                200,
+                json={
+                    "data": [
+                        {"index": i, "embedding": [1.0] + [0.0] * 767}
+                        for i, _ in enumerate(requests)
+                    ]
+                },
             )
         return httpx.Response(
             200,
             json={
-                "candidates": [{"content": {"parts": [{"text": "Resposta completa " * 30}]}}],
-                "usageMetadata": {"promptTokenCount": 40, "candidatesTokenCount": 12},
-                "modelVersion": "test-model",
+                "choices": [{"message": {"content": "Resposta completa " * 30}}],
+                "usage": {"prompt_tokens": 40, "completion_tokens": 12},
+                "model": "test-model",
             },
         )
 

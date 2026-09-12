@@ -1,4 +1,4 @@
-# Documento — consultas a arquivos com Gemini
+# Documento — consultas a arquivos com Ollama e Qwen
 
 Angular + FastAPI + PostgreSQL com consulta direta e RAG, biblioteca de documentos, histórico persistente, feedback, estatísticas, autenticação por usuário e cache.
 
@@ -6,7 +6,7 @@ O [guia completo da aplicação](docs/APLICACAO.md) explica as funcionalidades, 
 
 ## Executar localmente
 
-Preserve seu `.env` existente. Para uma instalação nova, use `.env.example` como referência e configure `GEMINI_API_KEY` e `DATABASE_URL`.
+Preserve seu `.env` existente. Para uma instalação nova, use `.env.example` como referência e configure `DATABASE_URL` e as vari?veis `OLLAMA_*` descritas em [Ollama local](docs/OLLAMA.md).
 
 ```powershell
 python -m venv .venv
@@ -47,7 +47,7 @@ Prefira `alembic upgrade head`. Para execução manual, há [SQL para banco novo
 - Chaves de acesso individuais, limites de requisições e CORS configurável.
 - Migrations, testes, avaliação de referência, CI e configuração Prometheus/Grafana.
 
-Sem `API_TOKENS`, somente `APP_ENV=development` permite o workspace compartilhado `local`. Para acesso individual, configure `API_TOKENS` conforme o guia. A chave do Gemini fica apenas no backend.
+Sem `API_TOKENS`, somente `APP_ENV=development` permite o workspace compartilhado `local`. Para acesso individual, configure `API_TOKENS` conforme o guia. O Ollama local n?o exige chave de API.
 
 ## Validar
 

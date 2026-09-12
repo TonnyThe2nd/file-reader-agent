@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
     }),
   );
   await page.route("**/api/ready", (route) =>
-    route.fulfill({ json: { owner: "local", gemini_configured: true } }),
+    route.fulfill({ json: { owner: "local", ollama_configured: true } }),
   );
 });
 

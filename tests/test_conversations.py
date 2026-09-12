@@ -14,19 +14,22 @@ from app.models import Conversation, Interaction
 @pytest.fixture
 def provider(client, monkeypatch):
     calls = []
-    monkeypatch.setattr(settings, "gemini_api_key", SecretStr("fake"))
+    monkeypatch.setattr(settings, "chat_model", "qwen-test")
 
     def handler(request):
         calls.append(json.loads(request.content))
-        if request.url.path.endswith(":batchEmbedContents"):
+        if request.url.path.endswith("/embeddings"):
             return httpx.Response(
                 200,
                 json={
-                    "embeddings": [{"values": [1.0] + [0.0] * 767} for _ in calls[-1]["requests"]]
+                    "data": [
+                        {"index": i, "embedding": [1.0] + [0.0] * 767}
+                        for i, _ in enumerate(calls[-1]["input"])
+                    ]
                 },
             )
         return httpx.Response(
-            200, json={"candidates": [{"content": {"parts": [{"text": "O prazo e cinco dias."}]}}]}
+            200, json={"choices": [{"message": {"content": "O prazo e cinco dias."}}]}
         )
 
     monkeypatch.setattr(app.state.http_client, "_transport", httpx.MockTransport(handler))
@@ -52,10 +55,10 @@ def test_memory_resume_and_cache_context(client, provider):
         "/ask", data={"question": "Explique melhor esse prazo.", "conversation_id": cid}
     )
     assert second.status_code == 200, second.text
-    contents = provider[-1]["contents"]
-    assert [m["role"] for m in contents] == ["user", "model", "user"]
-    assert contents[0]["parts"][0]["text"] == "Qual o prazo?"
-    assert contents[1]["parts"][0]["text"] == "O prazo e cinco dias."
+    contents = provider[-1]["messages"][1:]
+    assert [m["role"] for m in contents] == ["user", "assistant", "user"]
+    assert contents[0]["content"] == "Qual o prazo?"
+    assert contents[1]["content"] == "O prazo e cinco dias."
     assert not second.json()["cache_hit"]
     detail = client.get("/conversations/" + cid).json()
     assert [m["turn_number"] for m in detail["messages"]] == [1, 2]
@@ -83,7 +86,7 @@ def test_source_content_and_rag_followup(client, provider):
         },
     )
     assert response.status_code == 200
-    assert "Qual o prazo?" in provider[-2]["requests"][0]["content"]["parts"][0]["text"]
+    assert "Qual o prazo?" in provider[-2]["input"][0]
 
 
 def test_conversation_owner_and_deleted_document(client, provider, monkeypatch):
@@ -133,8 +136,8 @@ def test_memory_bounded_and_message_pagination(client, provider, database):
     assert len(client.get("/conversations/" + str(cid) + "?before=5").json()["messages"]) == 4
     response = client.post("/ask", data={"question": "continue", "conversation_id": str(cid)})
     assert response.status_code == 200
-    assert len(provider[-1]["contents"]) == 13
-    assert "Pergunta 49" == provider[-1]["contents"][0]["parts"][0]["text"]
+    assert len(provider[-1]["messages"][1:]) == 13
+    assert "Pergunta 49" == provider[-1]["messages"][1:][0]["content"]
 
 
 def test_failed_turn_does_not_advance_conversation(client, provider, database, monkeypatch):
@@ -162,7 +165,7 @@ def test_concurrent_turn_is_rejected(client, provider, database, monkeypatch):
             db.get(Conversation, cid).version += 1
             db.commit()
         return httpx.Response(
-            200, json={"candidates": [{"content": {"parts": [{"text": "resposta desatualizada"}]}}]}
+            200, json={"choices": [{"message": {"content": "resposta desatualizada"}}]}
         )
 
     monkeypatch.setattr(app.state.http_client, "_transport", httpx.MockTransport(handler))

@@ -14,7 +14,7 @@ from app.core.metrics import ASK_LATENCY_SECONDS, ASK_REQUESTS_TOTAL
 from app.core.security import limit_requests
 from app.schemas.ask import AskResponse
 from app.services.file_service import read_attachment
-from app.services.gemini_service import GeminiError
+from app.services.ollama_service import OllamaServiceError
 from app.services.rag_service import RAGService
 
 router = APIRouter(tags=["ask"])
@@ -63,7 +63,7 @@ async def ask(
             )
         ASK_REQUESTS_TOTAL.labels(status="success").inc()
         return response
-    except GeminiError as exc:
+    except OllamaServiceError as exc:
         ASK_REQUESTS_TOTAL.labels(status="error").inc()
         raise HTTPException(exc.status_code, exc.detail) from None
     except HTTPException:

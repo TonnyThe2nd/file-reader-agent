@@ -15,14 +15,14 @@ from app.models.conversation import Conversation
 from app.schemas.ask import AskResponse
 from app.services.conversation_service import get_conversation, memory
 from app.services.document_service import INDEX_VERSION, get_document, retrieve, save_document
-from app.services.gemini_service import GeminiService
+from app.services.ollama_service import OllamaService
 
-PROMPT_VERSION = "grounded-v2"
+PROMPT_VERSION = "ollama-grounded-v3"
 
 
 class RAGService:
-    def __init__(self, gemini: GeminiService):
-        self.gemini = gemini
+    def __init__(self, ollama: OllamaService):
+        self.ollama = ollama
 
     async def ask(
         self,
@@ -69,8 +69,12 @@ class RAGService:
             document.sha256,
             question,
             mode,
-            settings.gemini_model,
-            settings.embedding_model,
+            settings.base_url,
+            settings.default_temperature,
+            settings.default_max_tokens,
+            settings.ollama_embedding_dimensions,
+            settings.chat_model,
+            settings.embedding_model_ollama,
             settings.rag_top_k,
             INDEX_VERSION,
             PROMPT_VERSION,
@@ -107,7 +111,7 @@ class RAGService:
                         + "\nPergunta atual: "
                         + question
                     )
-                retrieved = await retrieve(db, document, retrieval_question, self.gemini)
+                retrieved = await retrieve(db, document, retrieval_question, self.ollama)
                 for source in retrieved:
                     source.document_id = str(document.id)
                     if source.section and source.section.startswith("Pagina "):
@@ -122,8 +126,8 @@ class RAGService:
                     question
                     + "\nResponda apenas com base nos trechos fornecidos e cite seus numeros [1], [2], etc. Se nao houver evidencia suficiente, informe isso."
                 )
-            answer, model = await self.gemini.generate(prompt, payload, mime, history=history)
-            usage = self.gemini.usage
+            answer, model = await self.ollama.generate(prompt, payload, mime, history=history)
+            usage = self.ollama.usage
             for kind, value in usage.items():
                 GENERATION_TOKENS_TOTAL.labels(kind=kind).inc(value)
         if conversation:

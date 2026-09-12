@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
     }),
   );
   await page.route("**/api/ready", (route) =>
-    route.fulfill({ json: { owner: "local", gemini_configured: true } }),
+    route.fulfill({ json: { owner: "local", ollama_configured: true } }),
   );
 });
 
@@ -108,7 +108,7 @@ test("login protege as telas e envia a chave somente para a API", async ({
     expect(route.request().headers()["authorization"]).toBe(
       "Bearer user-token",
     );
-    return route.fulfill({ json: { owner: "ana", gemini_configured: true } });
+    return route.fulfill({ json: { owner: "ana", ollama_configured: true } });
   });
   await page.goto("/");
   await expect(page.getByLabel("O que você quer descobrir?")).toHaveCount(0);

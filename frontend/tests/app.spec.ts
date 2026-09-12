@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
     }),
   );
   await page.route("**/api/ready", (route) =>
-    route.fulfill({ json: { gemini_configured: true, owner: "local" } }),
+    route.fulfill({ json: { ollama_configured: true, owner: "local" } }),
   );
   await page.route("**/api/health", (route) =>
     route.fulfill({ json: { status: "ok" } }),
@@ -28,7 +28,7 @@ test("envia arquivo e pergunta em multipart e exibe resposta segura", async ({
         answer: "O total é 42. <script>alert(1)</script>",
         sources: [],
         latency_ms: 1500,
-        model_used: "gemini-test",
+        model_used: "qwen-test",
         created_at: null,
       },
     });
@@ -51,11 +51,11 @@ test("envia arquivo e pergunta em multipart e exibe resposta segura", async ({
   await expect(page.locator(".answer-text script")).toHaveCount(0);
 });
 
-test("mostra erro do Gemini e permite tentar novamente", async ({ page }) => {
+test("mostra erro do Ollama e permite tentar novamente", async ({ page }) => {
   await page.route("**/api/ask", (route) =>
     route.fulfill({
       status: 503,
-      json: { detail: "O Gemini esta temporariamente indisponivel." },
+      json: { detail: "O Ollama esta temporariamente indisponivel." },
     }),
   );
   await page.goto("/");

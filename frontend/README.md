@@ -40,7 +40,7 @@ npx.cmd playwright install chromium
 npm.cmd run test:e2e
 ```
 
-O build fica em `dist/documento/browser`. Os testes simulam a API, sem enviar arquivos ao Gemini. O Dockerfile inclui Nginx com fallback das rotas Angular, limite de corpo HTTP e proxy para a API.
+O build fica em `dist/documento/browser`. Os testes simulam a API, sem enviar arquivos ao Ollama. O Dockerfile inclui Nginx com fallback das rotas Angular, limite de corpo HTTP e proxy para a API.
 
 Veja [o guia da aplicação](../docs/APLICACAO.md) para banco, backend, autenticação, configurações, testes reais e decisões de arquitetura.
 Na tela de consulta, “Manter contexto nesta conversa” vem ativado. “Nova conversa” reinicia o contexto mantendo o documento. O componente `shared/sources.ts` oferece fontes clicáveis na consulta e nos detalhes do histórico.

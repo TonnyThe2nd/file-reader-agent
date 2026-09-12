@@ -28,7 +28,8 @@ def ready(db: Annotated[Session, Depends(get_db)], owner: Annotated[str, Depends
     return {
         "status": "ok",
         "database": "ok",
-        "gemini_configured": bool(settings.gemini_api_key.get_secret_value().strip()),
+        "ollama_configured": bool(settings.base_url and settings.chat_model),
+        "provider": "ollama",
         "owner": owner,
     }
 

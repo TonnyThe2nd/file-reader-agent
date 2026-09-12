@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,19 +11,32 @@ class Settings(BaseSettings):
     app_port: int = 8000
     log_level: str = "INFO"
     database_url: str = "postgresql://postgres:postgres@localhost:5432/llmops"
-    gemini_api_key: SecretStr = Field(
-        default=SecretStr(""), validation_alias=AliasChoices("GEMINI_API_KEY")
-    )
-    gemini_model: str = Field(default="gemini-2.5-flash", pattern=r"^[a-zA-Z0-9._-]+$")
-    gemini_timeout_seconds: float = Field(default=120, gt=0)
     max_upload_bytes: int = Field(default=10485760, gt=0, le=10485760)
     cors_origins: list[str] = ["http://localhost:4200", "http://127.0.0.1:4200"]
     api_tokens: dict[str, SecretStr] = Field(default_factory=dict)
     rate_limit_per_minute: int = Field(default=30, ge=1)
     cache_ttl_seconds: int = Field(default=3600, ge=0)
-    embedding_model: str = Field(default="gemini-embedding-001", pattern=r"^[a-zA-Z0-9._-]+$")
     rag_top_k: int = Field(default=5, ge=1, le=20)
     rag_max_chunks: int = Field(default=200, ge=1, le=500)
+
+    chat_model: str = Field(
+        default="qwen3.6:27b", validation_alias="OLLAMA_CHAT_MODEL", min_length=1
+    )
+    embedding_model_ollama: str = Field(
+        default="nomic-embed-text", validation_alias="OLLAMA_EMBEDDING_MODEL", min_length=1
+    )
+    timeout: float = Field(default=300, validation_alias="OLLAMA_TIMEOUT_SECONDS", gt=0)
+    default_temperature: float = Field(
+        default=0.2, validation_alias="OLLAMA_TEMPERATURE", ge=0, le=2
+    )
+    default_max_tokens: int = Field(default=4096, validation_alias="OLLAMA_MAX_TOKENS", gt=0)
+    base_url: str = Field(
+        default="http://localhost:11434/v1",
+        validation_alias="OLLAMA_BASE_URL",
+        pattern=r"^https?://[^ ]+",
+    )
+    ollama_embedding_dimensions: int = Field(default=768, gt=0)
+    ollama_max_context_chars: int = Field(default=24000, gt=0)
 
     @field_validator("api_tokens")
     @classmethod

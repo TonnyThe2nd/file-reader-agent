@@ -96,7 +96,7 @@ export class Api {
     );
   }
   ready() {
-    return this.http.get<{ gemini_configured: boolean; owner: string }>(
+    return this.http.get<{ ollama_configured: boolean; owner: string }>(
       "/api/ready",
     );
   }

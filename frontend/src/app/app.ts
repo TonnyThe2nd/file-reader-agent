@@ -140,7 +140,7 @@ export class App {
         this.owner.set(result.owner);
         this.token = "";
         this.status.set(
-          result.gemini_configured ? "API conectada" : "Gemini não configurado",
+          result.ollama_configured ? "API conectada" : "Ollama não configurado",
         );
       },
       error: (error) => {
@@ -162,7 +162,7 @@ export class App {
       next: (result) => {
         this.owner.set(result.owner);
         this.status.set(
-          result.gemini_configured ? "API conectada" : "Gemini não configurado",
+          result.ollama_configured ? "API conectada" : "Ollama não configurado",
         );
       },
       error: () => this.status.set("API desconectada"),
