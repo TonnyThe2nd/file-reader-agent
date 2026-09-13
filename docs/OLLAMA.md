@@ -2,7 +2,7 @@
 
 O backend usa `OllamaService` com `httpx.AsyncClient`, compartilhado pelo ciclo de vida da API. Geração e embeddings usam exclusivamente o Ollama. Não é necessário instalar o SDK OpenAI nem fornecer chave Gemini. O `.env` existente é preservado; variáveis antigas Gemini são ignoradas.
 
-Adicione ao `.env` as variáveis `OLLAMA_*` de `.env.example`. O modelo padrão `qwen3.6:27b` preserva a escolha existente no código; configure `OLLAMA_CHAT_MODEL` com a tag exata instalada na sua máquina (`ollama list`).
+Adicione ao `.env` as variáveis `OLLAMA_*` de `.env.example`. O modelo padrão `qwen2.5:7b` preserva a escolha existente no código; configure `OLLAMA_CHAT_MODEL` com a tag exata instalada na sua máquina (`ollama list`).
 
 ```powershell
 ollama pull qwen3.6:27b
@@ -15,7 +15,7 @@ Se o Ollama já estiver em execução, não inicie uma segunda instância. Reini
 | Variável | Padrão / finalidade |
 |---|---|
 | `OLLAMA_BASE_URL` | `http://localhost:11434/v1`, incluindo `/v1` |
-| `OLLAMA_CHAT_MODEL` | `qwen3.6:27b` |
+| `OLLAMA_CHAT_MODEL` | `qwen2.5:7b` |
 | `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` |
 | `OLLAMA_EMBEDDING_DIMENSIONS` | `768`; deve corresponder à saída do modelo |
 | `OLLAMA_TIMEOUT_SECONDS` | `300`, por chamada, incluindo carregamento do modelo |

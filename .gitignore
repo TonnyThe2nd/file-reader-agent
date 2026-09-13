@@ -1,6 +1,8 @@
 .env
 # Dependencias e artefatos locais
 .npm-cache/
+.ci-lock-*/
+.ci-tooling/
 .venv/
 venv/
 __pycache__/

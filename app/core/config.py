@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     rag_max_chunks: int = Field(default=200, ge=1, le=500)
 
     chat_model: str = Field(
-        default="qwen3.6:27b", validation_alias="OLLAMA_CHAT_MODEL", min_length=1
+        default="qwen2.5:7b", validation_alias="OLLAMA_CHAT_MODEL", min_length=1
     )
     embedding_model_ollama: str = Field(
         default="nomic-embed-text", validation_alias="OLLAMA_EMBEDDING_MODEL", min_length=1
