@@ -1,4 +1,3 @@
-"""Gera SQL PostgreSQL para banco novo e para atualização a partir da revisão inicial."""
 from io import StringIO
 from pathlib import Path
 import sys
