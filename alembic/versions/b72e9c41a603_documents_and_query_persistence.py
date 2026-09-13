@@ -1,8 +1,3 @@
-"""Documentos, indice vetorial, isolamento e metadados de consultas.
-
-Registros anteriores pertencem ao workspace local. Nenhum dado e removido no upgrade.
-"""
-
 from alembic import op
 import sqlalchemy as sa
 

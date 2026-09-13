@@ -1,5 +1,3 @@
-"""Conversas persistentes e ordem das mensagens; consultas anteriores preservadas."""
-
 from alembic import op
 import sqlalchemy as sa
 

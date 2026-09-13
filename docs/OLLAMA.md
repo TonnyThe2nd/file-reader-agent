@@ -5,8 +5,9 @@ O backend usa `OllamaService` com `httpx.AsyncClient`, compartilhado pelo ciclo 
 Adicione ao `.env` as variáveis `OLLAMA_*` de `.env.example`. O modelo padrão `qwen2.5:7b` preserva a escolha existente no código; configure `OLLAMA_CHAT_MODEL` com a tag exata instalada na sua máquina (`ollama list`).
 
 ```powershell
-ollama pull qwen3.6:27b
+ollama pull qwen2.5:7b
 ollama pull nomic-embed-text
+# Somente se o servidor ainda não estiver em execução:
 ollama serve
 ```
 
@@ -34,5 +35,7 @@ No Docker Compose, a API acessa o Ollama do host por `http://host.docker.interna
 `/ready` verifica o banco e retorna `ollama_configured`; esse campo indica configuração presente, não disponibilidade real do servidor ou dos modelos. Erros de conexão, timeout e modelo ausente são apresentados ao consultar um documento.
 
 Validação automática: `python -m pytest -q` usa transporte HTTP simulado e SQLite. Para validar o modelo real após instalá-lo, use `python scripts/smoke_live.py --live` com o banco migrado. Esse teste cria e remove um workspace temporário.
+
+Selecione “Buscar trechos com fontes” ou envie `mode=rag` ao `/ask` para usar recuperação vetorial. O padrão `direct` não faz busca. Confira os dois modelos com `ollama list` e consulte [os resultados e pendências de validação](VALIDACAO.md).
 
 Referências: [protocolo compatível do Ollama](https://docs.ollama.com/api/openai-compatibility) e [prefixos do Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5).

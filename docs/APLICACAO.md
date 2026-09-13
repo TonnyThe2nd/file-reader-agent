@@ -1,5 +1,3 @@
-> Migra??o: o provedor ativo agora ? Ollama/Qwen. Consulte [OLLAMA.md](OLLAMA.md) para configura??o, protocolo, PDFs, ?ndices e limita??es atuais. As refer?ncias a Gemini abaixo descrevem a arquitetura anterior.
-
 # Documento — guia da aplicação
 
 ## 1. Objetivo e experiência de uso
@@ -12,10 +10,10 @@ Há dois modos:
 
 | Modo | Comportamento | Quando usar |
 | --- | --- | --- |
-| Documento inteiro | Envia o conteúdo completo ao Gemini. Textos seguem em UTF-8; PDFs e imagens seguem como conteúdo binário em base64. | Resumos gerais, documentos pequenos e imagens. |
-| Buscar trechos com fontes | Extrai texto, divide em trechos, gera embeddings, recupera os trechos mais próximos da pergunta e os envia ao Gemini. | Perguntas pontuais sobre textos e PDFs com texto extraível. |
+| Documento inteiro | Envia texto ao Ollama até o limite de contexto. PDFs passam por extração local; imagens seguem em base64 e exigem modelo com visão. | Resumos de documentos pequenos e imagens com modelo compatível. |
+| Buscar trechos com fontes | Extrai texto, divide em trechos, gera embeddings, recupera os trechos mais próximos da pergunta e os envia ao Ollama. | Perguntas pontuais sobre textos e PDFs com texto extraível. |
 
-O modo direto permanece como padrão para preservar o uso anterior. RAG não é necessariamente melhor para resumir um documento inteiro: uma busca que seleciona cinco trechos pode não cobrir todos os assuntos.
+A API usa `mode=direct` por padrão. Selecione “Buscar trechos com fontes” ou envie `mode=rag` para ativar a recuperação vetorial. RAG seleciona trechos e pode não cobrir todos os assuntos de um documento.
 
 ## 2. Funcionalidades
 
@@ -29,7 +27,7 @@ O modo direto permanece como padrão para preservar o uso anterior. RAG não é 
 - Feedback positivo ou negativo, com comentário opcional. A avaliação só é aceita uma vez por consulta.
 - Respostas e trechos são renderizados como texto. HTML gerado pelo modelo não é executado.
 
-O documento é salvo antes da chamada ao provedor. Se o Gemini falhar, o arquivo continua disponível para uma nova tentativa, mas não é criada uma interação com resposta falsa ou incompleta. Se o banco falhar, a API responde 503; não comunica que a consulta foi salva quando isso não aconteceu.
+O documento é salvo antes da chamada ao provedor. Se o Ollama falhar, o arquivo continua disponível para uma nova tentativa, mas não é criada uma interação com resposta falsa ou incompleta. Se o banco falhar, a API responde 503; não comunica que a consulta foi salva quando isso não aconteceu.
 
 ### Biblioteca
 
@@ -55,8 +53,8 @@ flowchart LR
     P --> A[FastAPI: contrato e autenticação]
     A --> S[Serviços de documentos e consultas]
     S --> DB[(PostgreSQL)]
-    S --> E[Gemini: embeddings]
-    S --> G[Gemini: geração]
+    S --> E[Ollama: embeddings]
+    S --> G[Ollama: geração]
     A --> M[Métricas Prometheus]
     M --> D[Grafana]
 ```
@@ -70,7 +68,7 @@ flowchart LR
 | Configuração e segurança | `app/core/` | Reúne banco, variáveis, identidade, limites e instrumentação. |
 | Orquestração | `app/services/rag_service.py` | Coordena documento, cache, recuperação, geração e persistência. |
 | Documentos | `app/services/document_service.py` | Deduplica arquivos e implementa extração, divisão, indexação e recuperação. |
-| Provedor | `app/services/gemini_service.py` | Encapsula chamadas REST, timeout e validação das respostas do Gemini. |
+| Provedor | `app/services/ollama_service.py` | Encapsula chamadas REST, timeout e validação das respostas do Ollama. |
 | Modelos e schemas | `app/models/`, `app/schemas/` | Separa tabelas do banco dos contratos públicos da API. |
 | Evolução do banco | `alembic/` | Aplica mudanças versionadas sem recriar o banco a cada inicialização. |
 | Qualidade e operação | `tests/`, `evaluation/`, `monitoring/` | Verifica comportamento, compara respostas de referência e acompanha a aplicação. |
@@ -79,19 +77,19 @@ As dependências foram reduzidas às bibliotecas realmente usadas. Redis, Qdrant
 
 ## 4. Como funciona o RAG
 
-1. O texto é lido em UTF-8 ou extraído de cada página do PDF pelo pypdf. PDFs digitalizados sem texto, protegidos por senha ou inválidos não são indexados: o usuário recebe orientação para usar consulta direta.
+1. O texto é lido em UTF-8 ou extraído de cada página do PDF pelo pypdf. PDFs sem texto extraível, protegidos ou inválidos são rejeitados também no modo direto. Não há OCR.
 2. O conteúdo é dividido em trechos de até 2.000 caracteres, com avanço de 1.800. A sobreposição de 200 caracteres reduz a perda de contexto nas fronteiras.
-3. O Gemini gera embeddings de 768 dimensões em lotes de até 32 trechos. A operação usa `RETRIEVAL_DOCUMENT` para documentos e `RETRIEVAL_QUERY` para perguntas.
+3. O Ollama gera embeddings com `nomic-embed-text`, por padrão com 768 dimensões, em lotes de até 32 trechos. O cliente aplica `search_document:` e `search_query:` ao usar Nomic e valida dimensão, ordem, valores finitos e vetores não nulos.
 4. Os vetores e os textos são persistidos em `document_chunks`. O índice é identificado por modelo e versão da divisão, permitindo reconstrução quando essa configuração mudar.
 5. A pergunta recebe um embedding. O sistema calcula similaridade por cosseno contra os trechos do documento selecionado e escolhe `RAG_TOP_K` resultados.
-6. Os trechos são numerados e enviados ao Gemini com a pergunta. O prompt pede referências como `[1]` e que o modelo informe a ausência de evidência.
+6. Os trechos são numerados e enviados ao Ollama com a pergunta. O prompt pede referências como `[1]` e que o modelo informe a ausência de evidência.
 7. As fontes recuperadas são salvas junto à resposta e exibidas na interface, incluindo arquivo e página/trecho.
 
 As fontes são evidências fornecidas ao modelo, não uma certificação automática de cada frase gerada. Ainda é necessário verificar informações importantes. A similaridade mede proximidade vetorial, não uma probabilidade de a resposta estar correta.
 
 O índice usa vetores armazenados em JSON e busca exata na aplicação, restrita a um documento e limitada por `RAG_MAX_CHUNKS` (200 por padrão). Não requer extensão pgvector ou um serviço adicional. Essa decisão atende a uma biblioteca inicial com arquivos limitados; pesquisa simultânea em um acervo grande e índices aproximados são evoluções futuras. O limite de PDFs é de 500 páginas, além dos limites de bytes e trechos. A extração roda fora do loop assíncrono da API.
 
-Referência do protocolo utilizado: [API oficial de embeddings do Gemini](https://ai.google.dev/api/embeddings). O modelo é configurável; sua disponibilidade e a cota precisam ser verificadas na conta utilizada.
+Geração e embeddings usam `/v1/chat/completions` e `/v1/embeddings` do Ollama. Instale os dois modelos conforme [o guia local](OLLAMA.md). A indexação ocorre na primeira consulta RAG, não no simples upload.
 
 ## 5. Cache e consumo
 
@@ -99,7 +97,7 @@ O cache usa respostas já persistidas, sem um servidor Redis. Sua chave combina 
 
 O tempo de validade padrão é de uma hora. A validade é contada a partir da geração original; acertos do cache não a renovam indefinidamente. `CACHE_TTL_SECONDS=0` desativa o cache. Na interface, desmarcar a reutilização força uma nova geração. Essa nova geração pode atender consultas seguintes.
 
-Um acerto do cache ainda cria uma interação com UUID próprio e permite feedback independente. Os tokens dessa interação são zero porque ela não faz nova geração. `input_tokens` e `output_tokens` registram os contadores de prompt e resposta informados pelo Gemini. Ausência de metadados resulta em zero: isso não prova ausência de cobrança. Esses campos não incluem todos os possíveis tokens de raciocínio nem o consumo de embeddings e não são uma fatura ou estimativa monetária.
+Um acerto do cache ainda cria uma interação com UUID próprio e permite feedback independente. Os tokens dessa interação são zero porque ela não faz nova geração. `input_tokens` e `output_tokens` registram os contadores de prompt e resposta informados pelo Ollama. Ausência de metadados resulta em zero. Esses campos não contabilizam embeddings nem medem RAM, VRAM ou energia. A inferência local utiliza recursos da máquina, sem cota de API externa.
 
 ## 6. Banco e migrations
 
@@ -152,7 +150,9 @@ O downgrade da nova revisão remove documentos, trechos e colunas novas. Ele exi
 Use Python 3.11, Node 22.20 e PostgreSQL 16. O arquivo `.env.example` lista as variáveis. Preserve seu `.env` existente e incorpore apenas as configurações necessárias.
 
 ```powershell
-# Na raiz
+# Na raiz, com Ollama instalado e em execução
+ollama pull qwen2.5:7b
+ollama pull nomic-embed-text
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 # Se ainda não houver um PostgreSQL local:
@@ -173,9 +173,13 @@ Se o PostgreSQL do Windows já usa 5432, você pode utilizá-lo com a `DATABASE_
 | Variável | Efeito |
 | --- | --- |
 | `DATABASE_URL` | Conexão SQLAlchemy; nunca enviada ao navegador. |
-| `GEMINI_API_KEY` | Credencial do provedor. A configuração local atual utiliza `GEMINI_API_KEY`. |
-| `GEMINI_MODEL`, `EMBEDDING_MODEL` | Modelos de geração e embeddings. |
-| `GEMINI_TIMEOUT_SECONDS` | Timeout de cada chamada HTTP ao provedor. Uma indexação pode exigir vários lotes. |
+| `OLLAMA_BASE_URL` | Endpoint local: `http://localhost:11434/v1`. |
+| `OLLAMA_CHAT_MODEL`, `OLLAMA_EMBEDDING_MODEL` | Modelos: `qwen2.5:7b` e `nomic-embed-text`, por padrão. |
+| `OLLAMA_EMBEDDING_DIMENSIONS` | Dimensão esperada: 768 por padrão. |
+| `OLLAMA_TIMEOUT_SECONDS` | Timeout por chamada: 300 segundos por padrão. |
+| `OLLAMA_TEMPERATURE`, `OLLAMA_MAX_TOKENS` | Temperatura e limite de saída: 0.2 e 4096 por padrão. |
+| `OLLAMA_MAX_CONTEXT_CHARS` | Limite de texto: 24000 caracteres por padrão; não mede tokens. |
+| `OLLAMA_DOCKER_BASE_URL` | Endereço do Ollama acessível pelo container da API. |
 | `MAX_UPLOAD_BYTES` | Limite do arquivo, no máximo 10 MiB. |
 | `RAG_TOP_K`, `RAG_MAX_CHUNKS` | Quantidade de fontes recuperadas e limite de indexação por documento. |
 | `CACHE_TTL_SECONDS` | Validade da resposta original no cache. |
@@ -195,7 +199,7 @@ API_TOKENS={"ana":"SUBSTITUA_POR_CHAVE_ALEATORIA_LONGA","local":"OUTRA_CHAVE_ALE
 
 Gere chaves com `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Elas devem ser distintas e ter pelo menos 24 caracteres. Mantenha o identificador do usuário ao trocar uma chave para preservar o acesso aos dados.
 
-O navegador pede a chave de acesso da aplicação, que é diferente da chave do Gemini. A chave é armazenada no `sessionStorage` da aba e enviada apenas às URLs `/api/` como `Authorization: Bearer ...`. Sair apaga a chave e desmonta as telas autenticadas. O backend determina o dono pela credencial; nenhum campo enviado pelo navegador escolhe outro usuário. Documento, histórico, detalhe, exclusão, estatísticas, cache e feedback respeitam esse dono.
+O navegador pede a chave de acesso da aplicação quando a autenticação está habilitada. O Ollama local não exige chave de API. A chave é armazenada no `sessionStorage` da aba e enviada apenas às URLs `/api/` como `Authorization: Bearer ...`. Sair apaga a chave e desmonta as telas autenticadas. O backend determina o dono pela credencial; nenhum campo enviado pelo navegador escolhe outro usuário. Documento, histórico, detalhe, exclusão, estatísticas, cache e feedback respeitam esse dono.
 
 Em desenvolvimento sem `API_TOKENS`, todos os acessos compartilham `local`. Não use esse modo para um serviço público. Em outros ambientes, a ausência de chaves impede o acesso aos dados. A implantação pública precisa de HTTPS, credenciais próprias e backup. Não há cadastro autônomo, recuperação de senha, OAuth ou perfis administrativos na interface: o acesso é administrado por configuração.
 
@@ -205,13 +209,13 @@ Em desenvolvimento sem `API_TOKENS`, todos os acessos compartilham `local`. Não
 | --- | --- |
 | `GET /config` | Configuração pública mínima: autenticação exigida e tamanho máximo. |
 | `GET /health` | Liveness: confirma que o processo responde, sem acessar provedor ou banco. |
-| `GET /ready` | Verifica acesso ao schema do banco e informa se existe chave Gemini configurada. Não testa a validade da chave nem consome cota. |
+| `GET /ready` | Verifica o schema e retorna `provider=ollama` e `ollama_configured`. Não testa conexão ao Ollama nem presença dos modelos. |
 | `POST /ask` | Multipart: `question`, exatamente um de `file`, `document_id` ou `conversation_id`, `chat=true|false`, `mode=direct\|rag`, `use_cache=true\|false`. |
 | `GET /conversations` | Conversas do usuário, páginas de 20 via `offset`. |
 | `GET /conversations/{id}` | Até 50 mensagens recentes; `before` carrega mensagens anteriores. |
 | `GET /documents/{id}` | Metadados do documento com verificação de dono. |
 | `GET /documents/{id}/content` | Conteúdo autenticado para visualização, sem cache HTTP. |
-| `POST /documents` | Upload multipart de `file`, sem chamada ao Gemini. |
+| `POST /documents` | Upload multipart de `file`, sem chamada ao Ollama. |
 | `GET /documents` | Biblioteca paginada por `limit` e `offset`. |
 | `DELETE /documents/{id}` | Exclui documento e índice, mantendo consultas anteriores. |
 | `GET /interactions` | Histórico com `limit`, `offset` e `search`. |
@@ -223,7 +227,7 @@ Em desenvolvimento sem `API_TOKENS`, todos os acessos compartilham `local`. Não
 
 Listagens aceitam `limit` entre 1 e 100 e `offset` não negativo. A interface usa páginas de 20. Identificadores inválidos retornam 422; registros inexistentes ou de outro usuário retornam 404.
 
-Erros principais: 401 para credencial ausente/inválida, 409 para feedback duplicado, 413 para tamanho/limite de indexação, 415 para formato, 422 para entrada inválida ou conteúdo bloqueado, 429 para limite local ou cota do provedor, 502 para falha de integração, 503 para indisponibilidade/configuração e 504 para timeout. A API não devolve o corpo bruto dos erros do provedor.
+Erros principais: 401 para credencial ausente/inválida, 409 para feedback duplicado, 413 para tamanho/limite de indexação, 415 para formato, 422 para entrada inválida ou conteúdo bloqueado, 429 para limite de requisições local ou do provedor, 502 para falha de integração, 503 para indisponibilidade/configuração e 504 para timeout. A API não devolve o corpo bruto dos erros do provedor.
 
 ## 10. Docker, monitoramento e CI
 
@@ -236,7 +240,7 @@ docker compose --profile app --profile monitoring up --build -d
 # Grafana: http://localhost:3000 ; Prometheus: http://localhost:9090
 ```
 
-O serviço `migrate` aguarda o PostgreSQL, aplica as migrations e termina. A API inicia depois dessa etapa. O Nginx serve o build Angular, resolve as rotas do frontend e encaminha `/api/` à API. O corpo HTTP é limitado a 11 MiB para permitir um arquivo de 10 MiB e o overhead multipart. A API mantém sua própria validação. O proxy aceita até 900 segundos de espera para indexações; cada chamada ao Gemini possui seu próprio timeout.
+O serviço `migrate` aguarda o PostgreSQL, aplica as migrations e termina. A API inicia depois dessa etapa. O Nginx serve o build Angular, resolve as rotas do frontend e encaminha `/api/` à API. O corpo HTTP é limitado a 11 MiB para permitir um arquivo de 10 MiB e o overhead multipart. A API mantém sua própria validação. O proxy aceita até 900 segundos de espera para indexações; cada chamada ao Ollama possui seu próprio timeout.
 
 As portas publicadas no Compose ficam vinculadas a `127.0.0.1`. Para disponibilizar externamente, configure um proxy com HTTPS e autenticação ativa. O banco usa volume nomeado; `docker compose down -v` remove dados e não faz parte da rotina de atualização. O container da API roda como usuário sem privilégios e com um worker.
 
@@ -259,24 +263,24 @@ npm.cmd run build
 npm.cmd run test:e2e
 ```
 
-Os testes automáticos simulam somente o transporte do Gemini e usam SQLite isolado quando testam a persistência. Exercitam o fluxo de consulta até estatísticas, cache/expiração, indexação/reutilização, falhas do provedor, validações, isolamento de usuários, exclusões e migrations com registros anteriores. Playwright cobre o navegador com respostas HTTP simuladas, sem depender de credenciais externas.
+Os testes automáticos simulam somente o transporte do Ollama e usam SQLite isolado quando testam a persistência. Exercitam o fluxo de consulta até estatísticas, cache/expiração, indexação/reutilização, falhas do provedor, validações, isolamento de usuários, exclusões e migrations com registros anteriores. Playwright cobre o navegador com respostas HTTP simuladas, sem depender de credenciais externas.
 
-`evaluation/dataset.json` define perguntas, documentos e termos esperados. `evaluation.run` compara respostas e fontes e grava um relatório. O modo padrão usa exemplos gravados: valida o avaliador, não mede a qualidade atual do Gemini. Para avaliar o provedor real, use um workspace dedicado e a API em execução:
+`evaluation/dataset.json` define perguntas, documentos e termos esperados. `evaluation.run` compara respostas e fontes e grava um relatório. O modo padrão usa exemplos gravados: valida o avaliador, não mede a qualidade atual do Ollama. Para avaliar o provedor real, use um workspace dedicado e a API em execução:
 
 ```powershell
 $env:EVALUATION_API_TOKEN = 'CHAVE_DO_WORKSPACE_DE_AVALIACAO'
 .\.venv\Scripts\python.exe -m evaluation.run --api-url http://127.0.0.1:8000
 ```
 
-Esse modo envia os documentos sintéticos, consome cota e salva interações no workspace da chave. O relatório indica `live` ou `recorded`. A checagem por termos não detecta todas as alucinações, paráfrases corretas ou referências incorretas; amplie o conjunto e faça revisão humana para medir qualidade de forma confiável.
+Esse modo envia os documentos sintéticos, executa inferência local e salva interações no workspace da chave. O relatório indica `live` ou `recorded`. A checagem por termos não detecta todas as alucinações, paráfrases corretas ou referências incorretas; amplie o conjunto e faça revisão humana para medir qualidade de forma confiável.
 
-Também existe `python scripts/smoke_live.py --live`: usa o banco configurado e o Gemini real para validar consulta direta, cache, RAG, histórico, feedback e estatísticas com um workspace temporário. Ao terminar, remove somente os dados desse workspace de teste. Requer schema migrado, rede e cota disponíveis.
+Também existe `python scripts/smoke_live.py --live`: usa o banco configurado e o Ollama real para validar consulta direta, cache, RAG, histórico, feedback e estatísticas com um workspace temporário. Ao terminar, remove somente os dados desse workspace de teste. Requer banco migrado, Ollama acessível e os modelos de geração e embeddings instalados.
 
 ## 12. Limites atuais e decisões futuras
 
-O projeto entrega o fluxo integrado e uma base de operação reproduzível. A disponibilidade do Gemini depende de chave, modelo e cota externos. Arquivos são guardados no banco, sem criptografia adicional feita pela aplicação; criptografia de disco, backups e políticas de retenção pertencem à implantação. PDFs/imagens no modo direto recebem validação básica de assinatura, não uma análise completa de segurança do documento.
+O projeto entrega o fluxo integrado e uma base de operação reproduzível. A disponibilidade do Ollama depende do servidor acessível, dos modelos instalados e dos recursos de memória e processamento da máquina. A implementação do MVP está integrada; a validação ponta a ponta com o modelo local deve ser confirmada conforme [o registro de validação](VALIDACAO.md). Arquivos são guardados no banco, sem criptografia adicional feita pela aplicação; criptografia de disco, backups e políticas de retenção pertencem à implantação. PDFs/imagens no modo direto recebem validação básica de assinatura, não uma análise completa de segurança do documento.
 
-Ainda não há OCR local, pesquisa em vários documentos ao mesmo tempo, processamento em fila, cobrança financeira por usuário ou login corporativo. Essas capacidades exigem decisões de produto e de infraestrutura além do fluxo implementado. Os diretórios antigos com `.gitkeep` não representam funcionalidades ativas.
+Ainda não há OCR local, pesquisa em vários documentos ao mesmo tempo, processamento em fila, cobrança financeira por usuário ou login corporativo. Essas capacidades exigem decisões de produto e de infraestrutura além do fluxo implementado. A ingestão e a recuperação estão em `app/services/document_service.py`, coordenadas por `app/services/rag_service.py`. Os testes do backend ficam diretamente em `tests/`.
 
 ## 13. Chat com memória e fontes clicáveis
 
@@ -290,7 +294,7 @@ Ainda não há OCR local, pesquisa em vários documentos ao mesmo tempo, process
 
 Cada conversa pertence a um usuário e a um documento. As mensagens completas continuam persistidas, mas o contexto enviado ao modelo é limitado às seis interações mais recentes, até 12.000 caracteres de histórico e 3.000 caracteres por resposta anterior. Não há resumo automático dos turnos antigos. A tela carrega 50 mensagens por vez e permite buscar as anteriores.
 
-O histórico segue como mensagens de usuário e modelo no pedido ao Gemini. No RAG, parte do contexto recente também acompanha a pergunta na busca vetorial, ajudando a interpretar referências como “esse prazo”. Isso não garante recuperação perfeita: confirme as fontes.
+O histórico segue como mensagens de usuário e modelo no pedido ao Ollama. No RAG, parte do contexto recente também acompanha a pergunta na busca vetorial, ajudando a interpretar referências como “esse prazo”. Isso não garante recuperação perfeita: confirme as fontes.
 
 A chave de cache inclui o histórico efetivamente enviado. Uma resposta independente não é reutilizada para uma pergunta com contexto diferente. Envios concorrentes verificam a versão da conversa antes de salvar; se ela mudou, o envio retorna 409 e orienta a reabrir a conversa. A chamada ao provedor pode já ter ocorrido nesse caso. Falhas de geração não avançam a versão nem adicionam uma resposta vazia.
 

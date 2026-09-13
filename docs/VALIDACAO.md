@@ -1,23 +1,53 @@
-# Validação — 11/09/2026
+# Validação — Ollama local
 
-## Executado com sucesso
+## Verificação de 13/09/2026
 
-- Backend: **39 testes e 14 subtestes**. Inclui integração das camadas com transporte Gemini simulado, persistência, cache e expiração, RAG e reutilização do índice, isolamento, feedback, exclusões, extração de PDF, migrations, memória limitada, paginação de conversas e rejeição de envios concorrentes desatualizados.
-- Navegador: **10 testes Playwright**, incluindo consulta, erro do provedor, histórico, layout móvel, documentos salvos, RAG/fontes, resposta completa, login/logout, continuidade e retomada do chat, destaque de trechos e abertura da página PDF.
-- Build Angular de produção: concluído.
-- Ruff e Prettier: código verificado e formatado.
-- PostgreSQL configurado no `.env`: migrations aplicadas até `c83f0d52b714`; `alembic check` sem divergências.
-- Migration em banco de teste: preservação de registro anterior e upgrade/downgrade verificados.
-- SQLs PostgreSQL para banco novo e atualização: gerados em `db/`.
-- Gemini real: consulta direta, cache, embeddings, recuperação de fontes e geração RAG validados com um documento sintético. Histórico, feedback e estatísticas conferidos no PostgreSQL real. Os registros do workspace temporário foram removidos pelo script.
-- Chat real: pergunta de continuação respondida pelo Gemini, retomada da conversa e acesso autenticado ao documento conferidos; conversas de teste removidas ao terminar.
-- Avaliador: exemplos gravados passaram; isso valida o mecanismo de avaliação, não representa uma medição ampla da qualidade do modelo.
-- Docker Compose: configuração validada com os perfis `app` e `monitoring`.
+- Backend: **46 testes e 14 subtestes passaram**, executados com `python -m pytest -q` no ambiente `.venv`. As chamadas HTTP ao Ollama são simuladas e a persistência usa banco de teste; isso não comprova inferência real.
+- A integração ativa usa `OllamaService` para geração e embeddings.
+- O endpoint local `/v1/models` respondeu HTTP 200 e listou apenas `qwen2.5:7b`.
+- A configuração carregada apontava para `localhost`, com `qwen2.5:7b` para geração e `nomic-embed-text` para embeddings.
+- `nomic-embed-text` não apareceu na lista de modelos: sua instalação era uma pendência para executar RAG nessa verificação.
+- A suíte apresentou um aviso de depreciação Starlette/AnyIO, sem falhas.
 
-## Limitações da validação
+Esses resultados registram o estado observado nessa data. A disponibilidade do endpoint e a presença do modelo não confirmam a geração de respostas nem o fluxo completo com PostgreSQL.
 
-O daemon Docker não estava em execução. Portanto, imagens, inicialização dos containers e provisionamento real de Grafana/Prometheus não foram executados nesta máquina. A pipeline de CI foi criada, mas não foi executada em um serviço remoto.
+## Pendências para validar a instalação local
 
-O smoke test real cobre um documento sintético curto; não equivale a teste de carga nem a avaliação de qualidade em documentos reais do usuário. Os testes Python apresentam um aviso de depreciação na dependência Starlette/AnyIO, sem falha de teste.
+1. Instalar os modelos configurados e manter o Ollama em execução:
 
-Nenhuma chave Gemini ou senha existente no `.env` foi alterada. O acesso local continua conforme a configuração existente; habilitar usuários individuais requer preencher `API_TOKENS` como explicado no guia.
+   ```powershell
+   ollama pull qwen2.5:7b
+   ollama pull nomic-embed-text
+   ollama list
+   ```
+
+2. Com o PostgreSQL disponível e `DATABASE_URL` configurada, aplicar e conferir o schema. Execute os comandos abaixo na raiz, com o ambiente `.venv` ativado:
+
+   ```powershell
+   python -m alembic upgrade head
+   python -m alembic check
+   ```
+
+3. Executar o teste com Ollama real no mesmo ambiente:
+
+   ```powershell
+   python scripts/smoke_live.py --live
+   ```
+
+O script verifica consulta direta, cache, embeddings, recuperação de fontes, geração RAG, histórico, feedback, estatísticas, continuidade do chat e acesso ao documento. Cria um workspace temporário e remove seus registros ao terminar. Usa recursos locais de inferência; não depende de cota Gemini.
+
+O teste real com Ollama e a situação atual do PostgreSQL ainda não foram confirmados nesta verificação. `/ready` verifica o schema e indica configuração do provedor, mas não testa conexão ao Ollama nem presença dos modelos.
+
+## Registro anterior — 11/09/2026
+
+A documentação anterior registrava 39 testes e 14 subtestes, 10 testes Playwright, build Angular, Ruff/Prettier, migrations até `c83f0d52b714`, `alembic check`, SQLs exportados, avaliação com respostas gravadas e configuração do Compose.
+
+Também registrava consulta direta, RAG e chat com **Gemini**, o provedor daquela versão. Esses resultados são históricos e não validam a execução real após a migração para Ollama. Os checks de frontend, banco e infraestrutura não foram repetidos na verificação de 13/09.
+
+## Limites da evidência
+
+- O teste sintético não substitui avaliação em documentos reais nem teste de carga.
+- A avaliação com respostas gravadas verifica o avaliador, não a qualidade atual do modelo.
+- No registro anterior, o daemon Docker estava parado; inicialização dos containers e provisionamento real de Grafana/Prometheus não foram validados.
+- A execução remota da pipeline de CI não está confirmada.
+- O MVP está implementado, mas a instalação local ainda precisa concluir as pendências acima antes de ser considerada validada de ponta a ponta.
