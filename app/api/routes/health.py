@@ -39,4 +39,5 @@ def public_config():
     return {
         "auth_required": bool(settings.api_tokens) or settings.app_env != "development",
         "max_upload_bytes": settings.max_upload_bytes,
+        "multiagent_enabled": settings.multiagent_enabled,
     }

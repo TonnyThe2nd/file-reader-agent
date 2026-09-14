@@ -1,10 +1,14 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+AskMode = Literal["direct", "rag", "multiagent"]
 
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
+    mode: AskMode = "direct"
     filters: dict | None = Field(default=None)
 
 
@@ -26,7 +30,7 @@ class AskResponse(BaseModel):
     cache_hit: bool
     created_at: datetime | None = None
     document_id: str | None = None
-    mode: str = "direct"
+    mode: AskMode = "direct"
     input_tokens: int = 0
     output_tokens: int = 0
     conversation_id: str | None = None

@@ -44,6 +44,9 @@ Prefira `alembic upgrade head`. Para execução manual, há [SQL para banco novo
 
 ## Funcionalidades
 
+O modo opcional `multiagent` executa router, researcher e answerer com o Ollama
+existente. Consulte [configuracao, arquitetura e observabilidade](docs/MULTIAGENTE.md).
+
 - PDF, TXT, MD, CSV, JSON e imagens, até 10 MiB.
 - Consulta ao documento inteiro ou busca vetorial em trechos de texto/PDF.
 - Biblioteca para reutilizar arquivos, com deduplicação por conteúdo e usuário.

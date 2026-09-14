@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = Field(default=3600, ge=0)
     rag_top_k: int = Field(default=5, ge=1, le=20)
     rag_max_chunks: int = Field(default=200, ge=1, le=500)
+    multiagent_enabled: bool = True
+    multiagent_model: str | None = Field(default=None, min_length=1)
+    multiagent_max_steps: int = Field(default=3, ge=3, le=10)
+    multiagent_timeout_seconds: float = Field(default=300, gt=0)
 
     chat_model: str = Field(
         default="qwen2.5:7b", validation_alias="OLLAMA_CHAT_MODEL", min_length=1

@@ -1,5 +1,19 @@
 from prometheus_client import Counter, Histogram
 
+MULTIAGENT_RUNS_TOTAL = Counter(
+    "multiagent_runs_total", "Fluxos multiagente executados", ["status"]
+)
+AGENT_FAILURES_TOTAL = Counter("agent_failures_total", "Falhas por agente", ["agent"])
+AGENT_DURATION_SECONDS = Histogram(
+    "agent_duration_seconds",
+    "Duracao por agente",
+    ["agent"],
+    buckets=[0.1, 1, 5, 10, 30, 60, 120, 300, 900],
+)
+AGENT_TOKENS_TOTAL = Counter(
+    "agent_tokens_total", "Tokens de geracao por agente", ["agent", "kind"]
+)
+
 CACHE_HITS_TOTAL = Counter("ask_cache_hits_total", "Consultas atendidas pelo cache")
 GENERATION_TOKENS_TOTAL = Counter(
     "generation_tokens_total", "Tokens informados pelo provedor", ["kind"]

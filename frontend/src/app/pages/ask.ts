@@ -37,6 +37,7 @@ export class AskPage {
     inject(ActivatedRoute).snapshot.queryParamMap.get("name") ||
     "Documento salvo";
   mode = "direct";
+  multiagentEnabled = true;
   useCache = true;
   maxBytes = 10485760;
   constructor() {
@@ -47,7 +48,10 @@ export class AskPage {
       this.loadConversation();
     }
     this.api.config().subscribe({
-      next: (config) => (this.maxBytes = config.max_upload_bytes),
+      next: (config) => {
+        this.maxBytes = config.max_upload_bytes;
+        this.multiagentEnabled = config.multiagent_enabled;
+      },
       error: () => {},
     });
   }

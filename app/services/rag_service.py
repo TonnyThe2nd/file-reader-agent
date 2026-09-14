@@ -13,6 +13,7 @@ from app.core.metrics import CACHE_HITS_TOTAL, GENERATION_TOKENS_TOTAL
 from app.models import Interaction
 from app.models.conversation import Conversation
 from app.schemas.ask import AskResponse
+from app.services.agent_service import AGENT_PROMPT_VERSION, AgentService
 from app.services.conversation_service import get_conversation, memory
 from app.services.document_service import INDEX_VERSION, get_document, retrieve, save_document
 from app.services.ollama_service import OllamaService
@@ -40,6 +41,8 @@ class RAGService:
         chat: bool = False,
     ) -> AskResponse:
         start = time.perf_counter()
+        if mode == "multiagent" and not self.ollama.config.multiagent_enabled:
+            raise HTTPException(422, "O modo multiagente esta desabilitado.")
         conversation = get_conversation(db, conversation_id, owner) if conversation_id else None
         if conversation:
             if not conversation.document_id:
@@ -54,6 +57,10 @@ class RAGService:
         )
         if mode == "rag" and document.mime_type not in ("text/plain", "application/pdf"):
             raise HTTPException(422, "RAG aceita textos e PDFs. Use consulta direta para imagens.")
+        if mode == "multiagent" and document.mime_type not in ("text/plain", "application/pdf"):
+            raise HTTPException(
+                422, "Multiagente aceita textos e PDFs. Use consulta direta para imagens."
+            )
         if chat and conversation is None:
             conversation = Conversation(
                 owner_id=owner, document_id=document.id, title=question[:200]
@@ -80,6 +87,17 @@ class RAGService:
             PROMPT_VERSION,
             history,
         ]
+        if mode == "multiagent":
+            config = self.ollama.config
+            signature.extend(
+                [
+                    AGENT_PROMPT_VERSION,
+                    config.multiagent_model or config.chat_model,
+                    config.multiagent_max_steps,
+                    config.multiagent_timeout_seconds,
+                    config.ollama_max_context_chars,
+                ]
+            )
         cache_key = hashlib.sha256(json.dumps(signature, ensure_ascii=False).encode()).hexdigest()
         cached = None
         if use_cache and settings.cache_ttl_seconds:
@@ -100,6 +118,10 @@ class RAGService:
         if cached:
             answer, model, sources = cached.answer, cached.model_used, cached.sources
             CACHE_HITS_TOTAL.inc()
+        elif mode == "multiagent":
+            agents = AgentService(self.ollama)
+            answer, model, sources = await agents.ask(question, document, history, db)
+            usage = agents.usage
         else:
             prompt, payload, mime = question, document.content, document.mime_type
             if mode == "rag":

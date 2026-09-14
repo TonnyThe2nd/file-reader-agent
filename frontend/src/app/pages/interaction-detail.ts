@@ -42,8 +42,14 @@ import { SourcesComponent } from "../shared/sources";
           >
         }
         <p>
-          {{ item.mode === "rag" ? "Busca por trechos" : "Consulta direta" }} ·
-          {{ item.cache_hit ? "Cache" : "Nova geração" }} · Tokens informados:
+          {{
+            item.mode === "multiagent"
+              ? "Fluxo multiagente"
+              : item.mode === "rag"
+                ? "Busca por trechos"
+                : "Consulta direta"
+          }}
+          · {{ item.cache_hit ? "Cache" : "Nova geração" }} · Tokens informados:
           {{ item.input_tokens }} entrada / {{ item.output_tokens }} saída
         </p>
         @if (item.comment) {

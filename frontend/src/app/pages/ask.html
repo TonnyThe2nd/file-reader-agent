@@ -75,9 +75,10 @@
           <option value="direct">
             Documento inteiro — ideal para resumos e imagens
           </option>
-          <option value="rag">
-            Buscar trechos com fontes — textos e PDFs
-          </option></select
+          <option value="rag">Buscar trechos com fontes — textos e PDFs</option>
+          @if(multiagentEnabled) {
+          <option value="multiagent">Multiagente - textos e PDFs</option>
+          }</select
         ><label
           ><input
             type="checkbox"
@@ -146,6 +147,9 @@
     <span class="tag">{{result.latency_ms / 1000 | number:'1.1-1'}} s</span>
   </div>
   <div class="answer-text">{{result.answer}}</div>
+  @if(result.mode === 'multiagent') {
+  <p class="response-meta">Resposta produzida pelo fluxo multiagente</p>
+  }
   <app-sources
     [sources]="result.sources"
     [documentId]="result.document_id"

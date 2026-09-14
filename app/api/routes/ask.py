@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -12,7 +12,7 @@ from app.core.database import get_db
 from app.core.logging import get_logger
 from app.core.metrics import ASK_LATENCY_SECONDS, ASK_REQUESTS_TOTAL
 from app.core.security import limit_requests
-from app.schemas.ask import AskResponse
+from app.schemas.ask import AskMode, AskResponse
 from app.services.file_service import read_attachment
 from app.services.ollama_service import OllamaServiceError
 from app.services.rag_service import RAGService
@@ -29,7 +29,7 @@ async def ask(
     owner: Annotated[str, Depends(limit_requests)],
     file: Annotated[UploadFile | None, File(description="Arquivo de ate 10 MiB")] = None,
     document_id: Annotated[UUID | None, Form()] = None,
-    mode: Annotated[Literal["direct", "rag"], Form()] = "direct",
+    mode: Annotated[AskMode, Form()] = "direct",
     use_cache: Annotated[bool, Form()] = True,
     conversation_id: Annotated[UUID | None, Form()] = None,
     chat: Annotated[bool, Form()] = False,

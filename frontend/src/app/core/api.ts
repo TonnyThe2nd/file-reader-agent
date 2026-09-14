@@ -91,9 +91,11 @@ export class Api {
     return this.http.get("/api/health");
   }
   config() {
-    return this.http.get<{ auth_required: boolean; max_upload_bytes: number }>(
-      "/api/config",
-    );
+    return this.http.get<{
+      auth_required: boolean;
+      max_upload_bytes: number;
+      multiagent_enabled: boolean;
+    }>("/api/config");
   }
   ready() {
     return this.http.get<{ ollama_configured: boolean; owner: string }>(
