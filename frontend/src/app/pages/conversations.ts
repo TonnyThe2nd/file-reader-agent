@@ -18,6 +18,14 @@ import { Api, ConversationItem, errorMessage } from "../core/api";
     @for (row of rows(); track row.id) {
       <article class="card history-item">
         <h2>{{ row.title }}</h2>
+        @if (row.parent_conversation_id) {
+          <a
+            class="secondary"
+            routerLink="/"
+            [queryParams]="{ conversation: row.parent_conversation_id }"
+            >Conversa de origem · turno {{ row.parent_turn }}</a
+          >
+        }
         <p>{{ row.created_at | date: "dd/MM/yyyy HH:mm" }}</p>
         <a
           class="secondary"

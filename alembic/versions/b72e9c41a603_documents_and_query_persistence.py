@@ -1,5 +1,6 @@
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "b72e9c41a603"
 down_revision = "ace48b94f7c9"

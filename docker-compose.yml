@@ -17,7 +17,10 @@
       retries: 10
   migrate:
     profiles: [app]
-    build: .
+    build:
+      context: .
+      args:
+        INSTALL_OCR: ${INSTALL_OCR:-false}
     image: documento-api:local
     env_file: .env
     environment: &backend_environment
@@ -28,7 +31,10 @@
         condition: service_healthy
   api:
     profiles: [app]
-    build: .
+    build:
+      context: .
+      args:
+        INSTALL_OCR: ${INSTALL_OCR:-false}
     image: documento-api:local
     env_file: .env
     environment:
@@ -45,6 +51,24 @@
       interval: 15s
       timeout: 5s
       retries: 5
+  worker:
+    profiles: [app]
+    build:
+      context: .
+      args:
+        INSTALL_OCR: ${INSTALL_OCR:-false}
+    image: documento-api:local
+    env_file: .env
+    environment:
+      <<: *backend_environment
+      OLLAMA_BASE_URL: ${OLLAMA_DOCKER_BASE_URL:-http://host.docker.internal:11434/v1}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: [python, -m, app.worker]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
   frontend:
     profiles: [app]
     build: ./frontend

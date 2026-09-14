@@ -1,6 +1,18 @@
 # Validação — Ollama local
 
-## Verificação de 13/09/2026
+## Evolução de 14/09/2026
+
+- Backend: **99 testes e 14 subtestes aprovados**, com 6 testes de integração ignorados localmente.
+- As integrações ignoradas são quatro cenários de concorrência em PostgreSQL (`POSTGRES_TEST_URL`) e dois cenários nativos de OCR (Tesseract e dependências opcionais). A CI foi configurada para executá-los.
+- Navegador: **16 testes Playwright aprovados**, incluindo regressão do fluxo anterior, múltiplos documentos, fontes corretas, streaming, exportação Markdown e comparação.
+- Build Angular e lint/formatação do backend aprovados. A avaliação com respostas gravadas passou; ela não mede a qualidade atual do Ollama.
+- Migrações foram verificadas com preservação de registros anteriores e comparação do schema em SQLite; SQL PostgreSQL atualizado foi exportado. Migrações não foram aplicadas ao banco pessoal.
+- O Docker não respondeu neste ambiente e Tesseract não estava disponível; inferência real com Ollama e execução nativa de OCR/PostgreSQL permanecem como validação da instalação de destino.
+- O teste do padrão multiagente foi alinhado à configuração local já ativada; a escolha existente foi preservada.
+
+Consulte [EVOLUCAO.md](EVOLUCAO.md) para arquitetura, ativação do worker/OCR, permissões, retenção, limites e próximos passos.
+
+## Verificação de 13/09/2026 (registro anterior)
 
 - Backend: **46 testes e 14 subtestes passaram**, executados com `python -m pytest -q` no ambiente `.venv`. As chamadas HTTP ao Ollama são simuladas e a persistência usa banco de teste; isso não comprova inferência real.
 - A integração ativa usa `OllamaService` para geração e embeddings.

@@ -8,10 +8,14 @@ import { Source } from "../core/api";
   template: `
     @for (source of sources(); track $index) {
       <blockquote>
-        @if (documentId()) {
+        @if (source.document_id || documentId()) {
           <a
             class="source-link"
-            [routerLink]="['/documentos', documentId(), 'visualizar']"
+            [routerLink]="[
+              '/documentos',
+              source.document_id || documentId(),
+              'visualizar',
+            ]"
             [queryParams]="{ interaction: interactionId(), source: $index }"
           >
             [{{ $index + 1 }}] {{ source.source }} · {{ source.section }} ↗

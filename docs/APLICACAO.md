@@ -2,6 +2,8 @@
 
 ## 1. Objetivo e experiência de uso
 
+As funcionalidades de produto, novos endpoints, configuração de OCR/worker e políticas estão detalhados no [guia de evolução](EVOLUCAO.md).
+
 Documento é uma aplicação para consultar arquivos com apoio de inteligência artificial. O usuário envia um arquivo, faz uma pergunta, recebe uma resposta e pode avaliar sua utilidade. Os arquivos ficam em uma biblioteca; as consultas ficam em um histórico com resposta completa, fontes, modelo e tempo de processamento. A página de estatísticas resume o uso e os feedbacks do workspace.
 
 A interface inicia conversas com memória por padrão. Perguntas de continuação usam o contexto recente do mesmo documento. Desmarque “Manter contexto nesta conversa” antes do primeiro envio para fazer consultas independentes. É possível reutilizar um documento salvo sem transferi-lo novamente do navegador.
@@ -77,7 +79,7 @@ As dependências foram reduzidas às bibliotecas realmente usadas. Redis, Qdrant
 
 ## 4. Como funciona o RAG
 
-1. O texto é lido em UTF-8 ou extraído de cada página do PDF pelo pypdf. PDFs sem texto extraível, protegidos ou inválidos são rejeitados também no modo direto. Não há OCR.
+1. O texto é lido em UTF-8 ou extraído de cada página do PDF pelo pypdf. Com OCR habilitado, páginas sem texto e imagens passam por Tesseract local. PDFs protegidos ou inválidos são rejeitados.
 2. O conteúdo é dividido em trechos de até 2.000 caracteres, com avanço de 1.800. A sobreposição de 200 caracteres reduz a perda de contexto nas fronteiras.
 3. O Ollama gera embeddings com `nomic-embed-text`, por padrão com 768 dimensões, em lotes de até 32 trechos. O cliente aplica `search_document:` e `search_query:` ao usar Nomic e valida dimensão, ordem, valores finitos e vetores não nulos.
 4. Os vetores e os textos são persistidos em `document_chunks`. O índice é identificado por modelo e versão da divisão, permitindo reconstrução quando essa configuração mudar.
@@ -87,7 +89,7 @@ As dependências foram reduzidas às bibliotecas realmente usadas. Redis, Qdrant
 
 As fontes são evidências fornecidas ao modelo, não uma certificação automática de cada frase gerada. Ainda é necessário verificar informações importantes. A similaridade mede proximidade vetorial, não uma probabilidade de a resposta estar correta.
 
-O índice usa vetores armazenados em JSON e busca exata na aplicação, restrita a um documento e limitada por `RAG_MAX_CHUNKS` (200 por padrão). Não requer extensão pgvector ou um serviço adicional. Essa decisão atende a uma biblioteca inicial com arquivos limitados; pesquisa simultânea em um acervo grande e índices aproximados são evoluções futuras. O limite de PDFs é de 500 páginas, além dos limites de bytes e trechos. A extração roda fora do loop assíncrono da API.
+O índice usa vetores armazenados em JSON e busca exata na aplicação, em até 20 documentos selecionados e limitada por `RAG_MAX_CHUNKS` por arquivo (200 por padrão). Busca textual BM25 e re-ranking complementam os embeddings. Não requer extensão pgvector ou um serviço adicional. Índices aproximados continuam sendo uma evolução para acervos maiores. O limite de PDFs é de 500 páginas, com limite separado para OCR, além dos limites de bytes e trechos. A extração roda fora do loop assíncrono da API.
 
 Geração e embeddings usam `/v1/chat/completions` e `/v1/embeddings` do Ollama. Instale os dois modelos conforme [o guia local](OLLAMA.md). A indexação ocorre na primeira consulta RAG, não no simples upload.
 
@@ -246,7 +248,7 @@ As portas publicadas no Compose ficam vinculadas a `127.0.0.1`. Para disponibili
 
 Prometheus coleta requisições, erros, latência, acertos de cache, feedback e tokens de geração. Grafana recebe fonte de dados e dashboard automaticamente. As regras de alerta detectam API fora do ar, taxa de erro elevada e latência p95 alta. Elas ficam visíveis no Prometheus; envio de notificações externas exige configurar um Alertmanager ou contato no Grafana, que não está conectado a contas externas neste projeto.
 
-O rate limiter é em memória e por processo: reinicia com a API e não coordena múltiplas réplicas. Antes de escalar horizontalmente, substitua-o por um limite compartilhado ou no gateway. A indexação é síncrona do ponto de vista da requisição; fila de trabalhos, armazenamento de objetos e busca aproximada são extensões para cargas maiores.
+O rate limiter por minuto é em memória e por processo. As novas cotas diárias usam reservas atômicas no PostgreSQL. O worker processa documentos em fila persistente; a indexação sob demanda permanece como compatibilidade quando o índice ainda não está pronto. Armazenamento de objetos e busca aproximada continuam sendo opções para cargas maiores.
 
 A pipeline `.github/workflows/ci.yml` verifica lint e formatação, testes Python, migrations em PostgreSQL, avaliação de respostas gravadas, formatação Angular, build e testes Playwright. Publicação/deploy automático não é executado pela pipeline.
 
@@ -280,7 +282,7 @@ Também existe `python scripts/smoke_live.py --live`: usa o banco configurado e 
 
 O projeto entrega o fluxo integrado e uma base de operação reproduzível. A disponibilidade do Ollama depende do servidor acessível, dos modelos instalados e dos recursos de memória e processamento da máquina. A implementação do MVP está integrada; a validação ponta a ponta com o modelo local deve ser confirmada conforme [o registro de validação](VALIDACAO.md). Arquivos são guardados no banco, sem criptografia adicional feita pela aplicação; criptografia de disco, backups e políticas de retenção pertencem à implantação. PDFs/imagens no modo direto recebem validação básica de assinatura, não uma análise completa de segurança do documento.
 
-Ainda não há OCR local, pesquisa em vários documentos ao mesmo tempo, processamento em fila, cobrança financeira por usuário ou login corporativo. Essas capacidades exigem decisões de produto e de infraestrutura além do fluxo implementado. A ingestão e a recuperação estão em `app/services/document_service.py`, coordenadas por `app/services/rag_service.py`. Os testes do backend ficam diretamente em `tests/`.
+OCR local opcional, RAG multi-documento e processamento em fila estão implementados. Cobrança financeira e login corporativo continuam fora do escopo. Recuperação híbrida, equipes, streaming, retenção e seus limites estão descritos em [EVOLUCAO.md](EVOLUCAO.md). Os testes do backend ficam diretamente em `tests/`.
 
 ## 13. Chat com memória e fontes clicáveis
 
@@ -292,7 +294,7 @@ Ainda não há OCR local, pesquisa em vários documentos ao mesmo tempo, process
 4. Abra “Conversas” no menu para retomar depois. A URL da consulta também contém o identificador, permitindo recarregar a página.
 5. “Nova conversa” limpa o contexto e mantém o documento selecionado. Trocar o arquivo também inicia um contexto separado.
 
-Cada conversa pertence a um usuário e a um documento. As mensagens completas continuam persistidas, mas o contexto enviado ao modelo é limitado às seis interações mais recentes, até 12.000 caracteres de histórico e 3.000 caracteres por resposta anterior. Não há resumo automático dos turnos antigos. A tela carrega 50 mensagens por vez e permite buscar as anteriores.
+Cada conversa pertence a um usuário e a um conjunto de documentos. Ramificações referenciam um prefixo da conversa original, sem copiar suas mensagens. O contexto enviado ao modelo é limitado às seis interações mais recentes, até 12.000 caracteres de histórico e 3.000 caracteres por resposta anterior. Não há resumo automático dos turnos antigos. A tela carrega 50 mensagens por vez e permite buscar as anteriores.
 
 O histórico segue como mensagens de usuário e modelo no pedido ao Ollama. No RAG, parte do contexto recente também acompanha a pergunta na busca vetorial, ajudando a interpretar referências como “esse prazo”. Isso não garante recuperação perfeita: confirme as fontes.
 

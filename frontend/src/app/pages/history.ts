@@ -4,7 +4,7 @@ import { FormsModule } from "@angular/forms";
 import { finalize } from "rxjs";
 import { RouterLink } from "@angular/router";
 import { FeedbackComponent } from "../shared/feedback";
-import { Api, Interaction, errorMessage } from "../core/api";
+import { Api, Interaction, DocumentItem, errorMessage } from "../core/api";
 @Component({
   imports: [DatePipe, FormsModule, RouterLink, FeedbackComponent],
   template: ` <div class="eyebrow">SUA BIBLIOTECA DE CONSULTAS</div>
@@ -18,6 +18,32 @@ import { Api, Interaction, errorMessage } from "../core/api";
         [(ngModel)]="search"
         maxlength="200"
       /><button class="secondary" [disabled]="busy()">Buscar</button>
+    </form>
+    <form class="toolbar" (ngSubmit)="offset = 0; load()">
+      <label
+        >Modo<select name="mode" [(ngModel)]="mode">
+          <option value="">Todos</option>
+          <option value="direct">Direto</option>
+          <option value="rag">RAG</option>
+          <option value="multiagent">Multiagente</option>
+        </select></label
+      >
+      <label
+        >Documento<select name="document" [(ngModel)]="documentId">
+          <option value="">Todos</option>
+          @for (doc of documents(); track doc.id) {
+            <option [value]="doc.id">{{ doc.name }}</option>
+          }
+        </select></label
+      >
+      @if (moreDocuments) {
+        <button type="button" class="secondary" (click)="loadDocuments()">
+          Carregar documentos
+        </button>
+      }
+      <label>Desde<input type="date" name="from" [(ngModel)]="from" /></label>
+      <label>Ate<input type="date" name="to" [(ngModel)]="to" /></label>
+      <button class="secondary" [disabled]="busy()">Aplicar filtros</button>
     </form>
     <div class="toolbar">
       <span
@@ -102,6 +128,29 @@ export class HistoryPage {
   error = signal("");
   offset = 0;
   search = "";
+  mode = "";
+  documentId = "";
+  from = "";
+  to = "";
+  documents = signal<DocumentItem[]>([]);
+  moreDocuments = true;
+  loadDocuments() {
+    this.api.documents(this.documents().length).subscribe({
+      next: (rows) => {
+        this.documents.update((current) => [...current, ...rows]);
+        this.moreDocuments = rows.length === 20;
+      },
+      error: (error) => this.error.set(errorMessage(error)),
+    });
+  }
+  filters() {
+    const filters: Record<string, string> = {};
+    if (this.mode) filters["mode"] = this.mode;
+    if (this.documentId) filters["document_id"] = this.documentId;
+    if (this.from) filters["created_from"] = this.from + "T00:00:00Z";
+    if (this.to) filters["created_to"] = this.to + "T23:59:59.999999Z";
+    return filters;
+  }
   selected = signal("");
   constructor() {
     this.load();
@@ -110,7 +159,7 @@ export class HistoryPage {
     this.busy.set(true);
     this.error.set("");
     this.api
-      .history(this.offset, this.search)
+      .history(this.offset, this.search, this.filters())
       .pipe(finalize(() => this.busy.set(false)))
       .subscribe({
         next: (rows) => this.rows.set(rows),

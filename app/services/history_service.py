@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 from sqlalchemy import case, func, select, true
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
 from app.models import Feedback, Interaction
+from app.models.governance import InteractionDocument
 from app.schemas.interaction import InteractionSummary
 from app.schemas.stats import StatsResponse
 
@@ -12,8 +14,32 @@ logger = get_logger(__name__)
 
 
 def list_interactions(
-    db: Session, limit: int, offset: int, owner: str = "local", search: str = ""
+    db: Session,
+    limit: int,
+    offset: int,
+    owner: str = "local",
+    search: str = "",
+    *,
+    mode: str | None = None,
+    document_id: UUID | None = None,
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
 ) -> list[InteractionSummary]:
+    conditions = []
+    if mode:
+        conditions.append(Interaction.mode == mode)
+    if document_id:
+        conditions.append(
+            Interaction.id.in_(
+                select(InteractionDocument.interaction_id).where(
+                    InteractionDocument.document_id == document_id
+                )
+            )
+        )
+    if created_from:
+        conditions.append(Interaction.created_at >= created_from)
+    if created_to:
+        conditions.append(Interaction.created_at <= created_to)
     rows = (
         db.execute(
             select(
@@ -29,6 +55,7 @@ def list_interactions(
             .where(
                 Interaction.owner_id == owner,
                 Interaction.question.icontains(search, autoescape=True),
+                *conditions,
             )
             .order_by(Interaction.created_at.desc(), Interaction.id.desc())
             .limit(limit)

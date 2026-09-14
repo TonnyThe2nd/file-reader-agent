@@ -1,6 +1,5 @@
-"""Cliente Ollama assincrono, usando o transporte HTTP da aplicacao."""
-
 import base64
+import json
 import math
 
 import httpx
@@ -8,6 +7,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.core.config import Settings
 from app.services.document_service import split_document
+from app.services.privacy_service import redact
 
 
 class OllamaServiceError(Exception):
@@ -22,8 +22,11 @@ class OllamaService:
         self.client = client
         self.config = config
         self.usage = {"input_tokens": 0, "output_tokens": 0}
+        self.on_token = None
 
     async def _post(self, path: str, payload: dict) -> dict:
+        if path == "chat/completions" and self.on_token is not None:
+            return await self._stream_completion(payload)
         try:
             response = await self.client.post(
                 f"{self.config.base_url.rstrip('/')}/{path}",
@@ -54,6 +57,52 @@ class OllamaService:
         except (ValueError, TypeError):
             raise OllamaServiceError(502, "O Ollama retornou uma resposta invalida.") from None
 
+    async def _stream_completion(self, payload):
+        payload = {**payload, "stream": True, "stream_options": {"include_usage": True}}
+        answer, usage, model, finish = "", {}, payload["model"], None
+        try:
+            async with self.client.stream(
+                "POST",
+                f"{self.config.base_url.rstrip('/')}/chat/completions",
+                json=payload,
+                timeout=self.config.timeout,
+            ) as response:
+                if response.is_error:
+                    raise OllamaServiceError(
+                        503 if response.status_code >= 500 else 422,
+                        "O Ollama nao iniciou o streaming.",
+                    )
+                async for line in response.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    raw = line[5:].strip()
+                    if raw == "[DONE]":
+                        break
+                    data = json.loads(raw)
+                    if data.get("error"):
+                        raise ValueError()
+                    usage = data.get("usage") or usage
+                    model = data.get("model") or model
+                    for choice in data.get("choices", []):
+                        finish = choice.get("finish_reason") or finish
+                        token = choice.get("delta", {}).get("content") or ""
+                        if not isinstance(token, str) or len(answer) + len(token) > 200_000:
+                            raise ValueError()
+                        if token:
+                            answer += token
+                            await self.on_token(token)
+            if finish is None:
+                raise ValueError()
+            return {
+                "choices": [{"message": {"content": answer}, "finish_reason": finish}],
+                "usage": usage,
+                "model": model,
+            }
+        except httpx.TimeoutException:
+            raise OllamaServiceError(504, "O Ollama excedeu o tempo limite.") from None
+        except (httpx.RequestError, ValueError, TypeError, AttributeError):
+            raise OllamaServiceError(502, "Streaming interrompido ou invalido.") from None
+
     async def generate(
         self, question: str, content: bytes, mime_type: str, history: list[dict] | None = None
     ) -> tuple[str, str]:
@@ -81,6 +130,10 @@ class OllamaService:
                 ),
             }
         ]
+        if self.config.redact_sensitive_data and mime_type.startswith("image/"):
+            sections = await run_in_threadpool(split_document, content, mime_type)
+            content = "\n".join(text for _, text in sections).encode()
+            mime_type = "text/plain"
         for item in history or []:
             messages.append(
                 {
@@ -117,6 +170,9 @@ class OllamaService:
                 f"--- ARQUIVO ---\n{context}\n--- FIM DO ARQUIVO ---\n\nPergunta: {question}"
             )
         messages.append({"role": "user", "content": user_content})
+        if self.config.redact_sensitive_data:
+            for message in messages:
+                message["content"] = redact(message["content"])
         data = await self._post(
             "chat/completions",
             {
@@ -158,6 +214,8 @@ class OllamaService:
         vectors = []
         for start in range(0, len(texts), 32):
             batch = texts[start : start + 32]
+            if self.config.redact_sensitive_data:
+                batch = [redact(text) for text in batch]
             if self.config.embedding_model_ollama.split(":")[0] == "nomic-embed-text":
                 prefix = "search_query: " if task == "RETRIEVAL_QUERY" else "search_document: "
                 batch = [prefix + text for text in batch]

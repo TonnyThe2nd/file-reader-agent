@@ -62,6 +62,14 @@ import { FormsModule } from "@angular/forms";
               ><span>☷</span> Conversas <small>05</small></a
             >
           </nav>
+          <nav aria-label="Ferramentas do produto">
+            <a routerLink="/comparar" routerLinkActive="active"
+              >Comparar documentos</a
+            >
+            <a routerLink="/administracao" routerLinkActive="active"
+              >Administracao e auditoria</a
+            >
+          </nav>
           <div class="sidebar-note">
             <span class="note-symbol">↗</span
             ><strong>Dos arquivos às respostas.</strong>

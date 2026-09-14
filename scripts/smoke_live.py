@@ -11,6 +11,7 @@ from app.core.database import SessionLocal
 from app.core.security import current_owner
 from app.main import app
 from app.models import Conversation, Document, Interaction
+from app.models.governance import AuditEvent, DailyUsage, UserPolicy
 
 
 def main():
@@ -54,6 +55,8 @@ def main():
             db.execute(delete(Interaction).where(Interaction.owner_id == owner))
             db.execute(delete(Conversation).where(Conversation.owner_id == owner))
             db.execute(delete(Document).where(Document.owner_id == owner))
+            for model in (AuditEvent, DailyUsage, UserPolicy):
+                db.execute(delete(model).where(model.owner_id == owner))
             db.commit()
 
 

@@ -4,6 +4,7 @@ import { ActivatedRoute, RouterLink } from "@angular/router";
 import { Api, InteractionDetail, errorMessage } from "../core/api";
 import { FeedbackComponent } from "../shared/feedback";
 import { SourcesComponent } from "../shared/sources";
+import { exportMarkdown, printAnswer } from "../shared/export";
 
 @Component({
   imports: [
@@ -28,6 +29,14 @@ import { SourcesComponent } from "../shared/sources";
           {{ item.latency_ms / 1000 | number: "1.1-1" }} s
         </p>
         <div class="answer-text">{{ item.answer }}</div>
+        <div class="toolbar">
+          <button class="secondary" (click)="exportMarkdown(item)">
+            Exportar Markdown
+          </button>
+          <button class="secondary" (click)="printAnswer(item)">
+            Imprimir / salvar PDF
+          </button>
+        </div>
         <app-sources
           [sources]="item.sources"
           [documentId]="item.document_id"
@@ -62,6 +71,8 @@ import { SourcesComponent } from "../shared/sources";
     }`,
 })
 export class InteractionDetailPage {
+  exportMarkdown = exportMarkdown;
+  printAnswer = printAnswer;
   private api = inject(Api);
   row = signal<InteractionDetail | null>(null);
   error = signal("");

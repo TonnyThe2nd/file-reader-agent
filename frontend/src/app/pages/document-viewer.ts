@@ -133,7 +133,8 @@ export class DocumentViewerPage implements OnDestroy {
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: (item) => {
-            if (item.document_id !== id) {
+            const selectedSource = item.sources[sourceIndex];
+            if ((selectedSource?.document_id || item.document_id) !== id) {
               this.error.set(
                 "O documento desta fonte não está mais disponível.",
               );

@@ -6,6 +6,8 @@ O [guia completo da aplicação](docs/APLICACAO.md) explica as funcionalidades, 
 
 ## Estado atual
 
+A evolução inclui RAG multi-documento, busca híbrida, re-ranking, OCR opcional, worker persistente, ramificações, streaming, comparação, administração, auditoria e retenção. Veja [arquitetura, ativação, API e limites](docs/EVOLUCAO.md).
+
 O MVP tem consulta direta, RAG e chat implementados com Ollama local. Isso não equivale à validação completa da instalação: é necessário ter banco migrado, os dois modelos instalados e executar o teste real. Consulte [os resultados e pendências](docs/VALIDACAO.md).
 
 ## Executar localmente
@@ -85,5 +87,5 @@ Interface na porta 8080, Grafana na 3000 e Prometheus na 9090, vinculados ao loc
 
 Selecione “Buscar trechos com fontes” na interface ou envie `mode=rag` ao `/ask`; o padrão da API é `direct`.
 
-RAG usa busca exata sobre embeddings persistidos, limitada a um documento. A memória de conversa é limitada aos turnos recentes. Não há OCR local nem pesquisa em todo o acervo. Consulte o guia para limites de escala e segurança.
+RAG combina embeddings e busca textual em até 20 documentos selecionados. A memória permanece limitada aos turnos recentes. OCR é opcional e o worker antecipa a indexação; ambos precisam ser ativados conforme o [guia de evolução](docs/EVOLUCAO.md).
 A migration [c83f0d52b714](alembic/versions/c83f0d52b714_conversations.py) adiciona conversas. Para bancos na revisão anterior, o SQL correspondente está em [db/migrate_chat.sql](db/migrate_chat.sql). Prefira `alembic upgrade head`.

@@ -261,7 +261,7 @@ def test_mode_validation_disabled_and_limits(client, provider, monkeypatch):
 
 def test_config_defaults():
     config = Settings(_env_file=None)
-    assert not config.multiagent_enabled and config.multiagent_model is None
+    assert config.multiagent_enabled and config.multiagent_model is None
     with pytest.raises(ValidationError):
         Settings(_env_file=None, multiagent_max_steps=2)
 

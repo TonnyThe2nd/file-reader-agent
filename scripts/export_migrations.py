@@ -13,5 +13,6 @@ for revision, name in [('head', 'migrate_fresh.sql'), ('ace48b94f7c9:head', 'mig
     output = StringIO()
     config = Config(str(root / 'alembic.ini'), output_buffer=output)
     command.upgrade(config, revision, sql=True)
-    (root / 'db' / name).write_text(output.getvalue(), encoding='utf-8')
+    sql = '\n'.join(line.rstrip() for line in output.getvalue().splitlines()) + '\n'
+    (root / 'db' / name).write_text(sql, encoding='utf-8')
     print(name)

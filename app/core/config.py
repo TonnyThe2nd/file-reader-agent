@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -14,10 +14,18 @@ class Settings(BaseSettings):
     max_upload_bytes: int = Field(default=10485760, gt=0, le=10485760)
     cors_origins: list[str] = ["http://localhost:4200", "http://127.0.0.1:4200"]
     api_tokens: dict[str, SecretStr] = Field(default_factory=dict)
+    admin_owners: list[str] = Field(default_factory=list)
+    redact_sensitive_data: bool = False
+    estimated_cost_per_million_tokens: float = Field(default=0, ge=0)
     rate_limit_per_minute: int = Field(default=30, ge=1)
     cache_ttl_seconds: int = Field(default=3600, ge=0)
     rag_top_k: int = Field(default=5, ge=1, le=20)
     rag_max_chunks: int = Field(default=200, ge=1, le=500)
+    ocr_enabled: bool = False
+    ocr_languages: str = "por+eng"
+    ocr_max_pages: int = Field(default=30, ge=1, le=100)
+    ocr_timeout_seconds: int = Field(default=30, ge=1, le=120)
+    worker_timeout_seconds: int = Field(default=600, ge=30, le=3600)
     multiagent_enabled: bool = True
     multiagent_model: str | None = Field(default=None, min_length=1)
     multiagent_max_steps: int = Field(default=3, ge=3, le=10)

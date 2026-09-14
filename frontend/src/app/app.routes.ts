@@ -1,6 +1,14 @@
 import { Routes } from "@angular/router";
 export const routes: Routes = [
   {
+    path: "administracao",
+    loadComponent: () => import("./pages/admin").then((m) => m.AdminPage),
+  },
+  {
+    path: "comparar",
+    loadComponent: () => import("./pages/compare").then((m) => m.ComparePage),
+  },
+  {
     path: "conversas",
     loadComponent: () =>
       import("./pages/conversations").then((m) => m.ConversationsPage),

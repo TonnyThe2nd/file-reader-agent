@@ -44,6 +44,38 @@
     @if(documentId) {
     <p>Selecionado: <strong>{{documentName}}</strong></p>
     }
+    <details>
+      <summary>Consultar varios documentos</summary>
+      @if(conversationId) {
+      <p>
+        Esta selecao define o contexto ao usar Ramificar daqui ou Reexecutar
+        pergunta. Os envios comuns continuam na conversa atual.
+      </p>
+      }
+      <p>
+        Selecione ate 20 textos ou PDFs. A consulta usa RAG e combina as fontes
+        selecionadas.
+      </p>
+      @for(doc of library(); track doc.id) { @if(doc.mime_type === 'text/plain'
+      || doc.mime_type === 'application/pdf') {
+      <label
+        ><input
+          type="checkbox"
+          [checked]="selectedIds.includes(doc.id)"
+          [disabled]="busy() || (selectedIds.length >= 20 && !selectedIds.includes(doc.id))"
+          (change)="toggleDocument(doc.id, $any($event.target).checked)"
+        />{{doc.name}}</label
+      >
+      }} @if(libraryMore) {<button
+        type="button"
+        class="secondary"
+        (click)="loadLibrary()"
+        [disabled]="busy()"
+      >
+        Carregar documentos</button
+      >}
+      <p>{{selectedIds.length}} documentos selecionados</p>
+    </details>
     <form (ngSubmit)="send()">
       <div class="section-title question-title">
         <span class="step">02</span
@@ -71,12 +103,17 @@
           Manter contexto nesta conversa</label
         >
         <label for="mode">Como consultar</label
-        ><select id="mode" name="mode" [(ngModel)]="mode" [disabled]="busy()">
+        ><select
+          id="mode"
+          name="mode"
+          [(ngModel)]="mode"
+          [disabled]="busy() || selectedIds.length > 0"
+        >
           <option value="direct">
             Documento inteiro — ideal para resumos e imagens
           </option>
           <option value="rag">Buscar trechos com fontes — textos e PDFs</option>
-          @if(multiagentEnabled) {
+          @if(multiagentEnabled()) {
           <option value="multiagent">Multiagente - textos e PDFs</option>
           }</select
         ><label
@@ -89,10 +126,35 @@
           Reutilizar resposta recente, quando disponível</label
         >
       </div>
+      @if(mode === 'rag') {
+      <label
+        ><input
+          type="checkbox"
+          name="hybrid"
+          [(ngModel)]="hybrid"
+          [disabled]="busy()"
+        />Busca hibrida (significado e palavras-chave)</label
+      >
+      <label
+        ><input
+          type="checkbox"
+          name="rerank"
+          [(ngModel)]="rerank"
+          [disabled]="busy()"
+        />Reduzir trechos repetidos e diversificar evidencias</label
+      >
+      } @if(mode !== 'multiagent') {<label
+        ><input
+          type="checkbox"
+          name="streaming"
+          [(ngModel)]="streaming"
+          [disabled]="busy()"
+        />Mostrar resposta em tempo real</label
+      >}
       <button
         class="primary send"
         type="submit"
-        [disabled]="busy() || readOnly || (!file() && !documentId && !conversationId) || !question.trim()"
+        [disabled]="busy() || readOnly || (!file() && !documentId && !conversationId && !selectedIds.length) || !question.trim()"
       >
         {{busy() ? 'Analisando documento…' : 'Perguntar ao documento'}}<span
           >{{busy() ? '◌' : '↗'}}</span
@@ -147,7 +209,31 @@
     <span class="tag">{{result.latency_ms / 1000 | number:'1.1-1'}} s</span>
   </div>
   <div class="answer-text">{{result.answer}}</div>
-  @if(result.mode === 'multiagent') {
+  <div class="toolbar">
+    <button class="secondary" (click)="exportMarkdown(result)">
+      Exportar Markdown
+    </button>
+    <button class="secondary" (click)="printAnswer(result)">
+      Imprimir / salvar PDF
+    </button>
+    @if(conversationId && result.turn_number) {
+    <button class="secondary" [disabled]="busy()" (click)="branchFrom(result)">
+      Ramificar daqui
+    </button>
+    <button
+      class="secondary"
+      [disabled]="busy()"
+      (click)="branchFrom(result, true)"
+    >
+      Reexecutar pergunta
+    </button>
+    }
+  </div>
+  @for(suggestion of result.follow_up_questions || []; track suggestion) {
+  <button class="secondary" [disabled]="busy()" (click)="question = suggestion">
+    {{suggestion}}
+  </button>
+  } @if(result.mode === 'multiagent') {
   <p class="response-meta">Resposta produzida pelo fluxo multiagente</p>
   }
   <app-sources
@@ -168,5 +254,10 @@
     {{result.model_used}} · Confira as informações importantes no arquivo
     original.
   </div>
+</section>
+} @if(busy() && partial()) {
+<section class="card response">
+  <h2>Resposta em andamento</h2>
+  <div class="answer-text" aria-live="polite">{{partial()}}</div>
 </section>
 }

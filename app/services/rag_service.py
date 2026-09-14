@@ -12,11 +12,14 @@ from app.core.config import settings
 from app.core.metrics import CACHE_HITS_TOTAL, GENERATION_TOKENS_TOTAL
 from app.models import Interaction
 from app.models.conversation import Conversation
-from app.schemas.ask import AskResponse
+from app.models.governance import DailyUsage, InteractionDocument
+from app.schemas.ask import AskResponse, RetrievalFilters
 from app.services.agent_service import AGENT_PROMPT_VERSION, AgentService
 from app.services.conversation_service import get_conversation, memory
-from app.services.document_service import INDEX_VERSION, get_document, retrieve, save_document
+from app.services.document_service import INDEX_VERSION, get_document, save_document
+from app.services.governance_service import audit, reserve_query
 from app.services.ollama_service import OllamaService
+from app.services.retrieval_service import RETRIEVAL_VERSION, filter_documents, retrieve_many
 
 PROMPT_VERSION = "ollama-grounded-v3"
 
@@ -39,23 +42,53 @@ class RAGService:
         use_cache: bool = True,
         conversation_id: UUID | None = None,
         chat: bool = False,
+        document_ids: list[UUID] | None = None,
+        hybrid: bool = True,
+        rerank: bool = True,
+        filters: RetrievalFilters | None = None,
     ) -> AskResponse:
         start = time.perf_counter()
         if mode == "multiagent" and not self.ollama.config.multiagent_enabled:
             raise HTTPException(422, "O modo multiagente esta desabilitado.")
         conversation = get_conversation(db, conversation_id, owner) if conversation_id else None
         if conversation:
+            if conversation.document_ids:
+                document_ids = [UUID(value) for value in conversation.document_ids]
             if not conversation.document_id:
                 raise HTTPException(
                     410, "O documento desta conversa foi excluido. Inicie outra conversa."
                 )
             document_id = conversation.document_id
+        if document_ids is not None:
+            if not 1 <= len(document_ids) <= 20:
+                raise HTTPException(422, "Selecione de 1 a 20 documentos.")
+            if mode != "rag" and (len(set(document_ids)) > 1 or conversation is None):
+                raise HTTPException(422, "Selecao de varios documentos exige modo RAG.")
+            documents = [
+                get_document(db, value, owner) for value in sorted(set(document_ids), key=str)
+            ]
+            document_id = documents[0].id
         document = (
             get_document(db, document_id, owner)
             if document_id
             else save_document(db, owner, filename, content, mime_type)
         )
-        if mode == "rag" and document.mime_type not in ("text/plain", "application/pdf"):
+        if document_ids is None:
+            documents = [document]
+        if filters:
+            documents = filter_documents(documents, filters)
+            document = documents[0]
+        if mode == "rag" and any(
+            d.mime_type not in ("text/plain", "application/pdf")
+            and not (settings.ocr_enabled and d.mime_type.startswith("image/"))
+            for d in documents
+        ):
+            raise HTTPException(422, "RAG aceita textos e PDFs.")
+        if (
+            mode == "rag"
+            and document.mime_type not in ("text/plain", "application/pdf")
+            and not settings.ocr_enabled
+        ):
             raise HTTPException(422, "RAG aceita textos e PDFs. Use consulta direta para imagens.")
         if mode == "multiagent" and document.mime_type not in ("text/plain", "application/pdf"):
             raise HTTPException(
@@ -63,7 +96,10 @@ class RAGService:
             )
         if chat and conversation is None:
             conversation = Conversation(
-                owner_id=owner, document_id=document.id, title=question[:200]
+                owner_id=owner,
+                document_id=document.id,
+                title=question[:200],
+                document_ids=[str(d.id) for d in documents] if document_ids is not None else None,
             )
             db.add(conversation)
             db.commit()
@@ -86,6 +122,15 @@ class RAGService:
             INDEX_VERSION,
             PROMPT_VERSION,
             history,
+            [(str(d.id), d.sha256) for d in documents],
+            RETRIEVAL_VERSION,
+            hybrid,
+            rerank,
+            settings.ollama_max_context_chars,
+            settings.ocr_enabled,
+            settings.ocr_languages,
+            settings.redact_sensitive_data,
+            filters.model_dump(mode="json") if filters else None,
         ]
         if mode == "multiagent":
             config = self.ollama.config
@@ -114,6 +159,19 @@ class RAGService:
                 .limit(1)
             )
         sources = []
+        reservation = (
+            0
+            if cached
+            else 4 * (settings.ollama_max_context_chars + 14000) + settings.default_max_tokens
+        )
+        if mode == "multiagent":
+            reservation *= settings.multiagent_max_steps
+        if not cached and document.mime_type.startswith("image/"):
+            reservation += document.size_bytes * 2
+        day = reserve_query(db, owner, reservation)
+        for item in documents:
+            audit(db, owner, "document.query", item.id)
+        db.commit()
         usage = {"input_tokens": 0, "output_tokens": 0}
         if cached:
             answer, model, sources = cached.answer, cached.model_used, cached.sources
@@ -133,11 +191,13 @@ class RAGService:
                         + "\nPergunta atual: "
                         + question
                     )
-                retrieved = await retrieve(db, document, retrieval_question, self.ollama)
-                for source in retrieved:
-                    source.document_id = str(document.id)
-                    if source.section and source.section.startswith("Pagina "):
-                        source.page = int(source.section.split(",")[0].split()[1])
+                retrieved = await retrieve_many(
+                    db, documents, retrieval_question, self.ollama, hybrid=hybrid, rerank=rerank
+                )
+                if not retrieved:
+                    raise HTTPException(
+                        422, "Nenhum trecho cabe no limite de contexto configurado."
+                    )
                 sources = [source.model_dump() for source in retrieved]
                 payload = "\n\n".join(
                     f"[{i + 1}] {s.source} — {s.section}\n{s.content}"
@@ -180,6 +240,15 @@ class RAGService:
             **usage,
         )
         db.add(row)
+        db.flush()
+        for item in documents:
+            db.add(InteractionDocument(interaction_id=row.id, document_id=item.id))
+        db.execute(
+            update(DailyUsage)
+            .where(DailyUsage.owner_id == owner, DailyUsage.day == day)
+            .values(tokens=DailyUsage.tokens - reservation + sum(usage.values()))
+        )
+        audit(db, owner, "query.complete", row.id)
         db.commit()
         db.refresh(row)
         return AskResponse(
@@ -191,7 +260,16 @@ class RAGService:
             cache_hit=row.cache_hit,
             created_at=row.created_at,
             document_id=str(document.id),
+            document_ids=[str(d.id) for d in documents],
             conversation_id=str(conversation.id) if conversation else None,
+            follow_up_questions=[
+                "Quais trechos sustentam esta resposta?",
+                "Quais informacoes ainda faltam nos documentos?",
+                "Compare as evidencias dos documentos."
+                if len(documents) > 1
+                else "Resuma os pontos principais em uma lista.",
+            ],
+            turn_number=row.turn_number,
             mode=mode,
             **usage,
         )

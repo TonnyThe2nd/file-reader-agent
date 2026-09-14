@@ -120,6 +120,7 @@ def test_memory_bounded_and_message_pagination(client, provider, database):
                 Interaction(
                     owner_id="local",
                     conversation_id=cid,
+                    document_id=UUID(first["document_id"]),
                     turn_number=i,
                     question=f"Pergunta {i}",
                     answer="Resposta",

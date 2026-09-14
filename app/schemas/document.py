@@ -11,3 +11,9 @@ class DocumentSummary(BaseModel):
     mime_type: str
     size_bytes: int
     created_at: datetime
+    category: str | None = None
+    processing_status: str = "pending"
+    processing_progress: int = 0
+    processing_attempts: int = 0
+    processing_error: str | None = None
+    can_manage: bool = False
