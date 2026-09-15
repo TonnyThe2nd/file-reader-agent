@@ -1,5 +1,6 @@
 """Local OCR with page, pixel and subprocess time limits."""
 
+from contextlib import closing
 from io import BytesIO
 from threading import Lock
 
@@ -37,11 +38,11 @@ def ocr_pages(content: bytes, mime_type: str, page_numbers=None):
                 raise HTTPException(413, "PDF excede o limite de paginas para OCR.")
             result = []
             for i in numbers:
-                with pdf[i] as page:
+                with closing(pdf[i]) as page:
                     width, height = page.get_size()
                     if width * height * 4 > 20_000_000:
                         raise HTTPException(413, "Pagina excede o limite de pixels para OCR.")
-                    with page.render(scale=2) as bitmap:
+                    with closing(page.render(scale=2)) as bitmap:
                         with bitmap.to_pil() as image:
                             result.append((f"Pagina {i + 1}", extract_image(image)))
             return result
